@@ -81,8 +81,12 @@
 
 【主な機能（現時点）】
   - タブ構成：⚫囲碁／🀄麻雀／🏅総合／📚過去の合宿／⚙️設定
-  - 現時点では骨組みのみ。各タブの中身（スイス式ロジック・麻雀記録・
-    総合ポイント計算・アーカイブ表示）は次のステップで実装する。
+  - 対局者名簿（⚙️設定タブ→管理者の仕事内。名前・段位（任意）を登録・編集・削除できる。
+    大石道場杯の名簿とは別のFirebaseノードで独立管理。tournament.htmlの名簿UIを踏襲）
+  - 今回の合宿設定（開催日・参加者選択（名簿からトグルで選択、人数は可変・14人目安）・
+    囲碁の回戦数（参加人数から自動算出した目安を表示しつつ手動で上書き可能）。
+    「保存して全員に同期」で確定し、以降は編集の都度、上書き確認を挟む）
+  - 囲碁・麻雀・総合・過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
   - 合言葉認証・Firebase同期ステータス表示・トースト通知・管理者メニュー
     折りたたみなど、山あるき／大石道場共通のUI部品はこの段階で導入済み。
 
@@ -91,9 +95,11 @@
   - 麻雀パート：回ごとの記録入力・履歴表示の実装
   - 総合パート：配点表に基づくポイント計算・重み設定UIの実装
   - 過去の合宿タブ：アーカイブ一覧・詳細展開・全期間通算成績の実装
-  - 設定タブ：合宿専用名簿・重み設定・回戦数手動上書き・シーズン管理・
-    結果リセット・完全リセット・データエクスポートの実装
+  - 設定タブ：重み設定・シーズン管理・結果リセット・完全リセット・
+    データエクスポートの実装（対局者名簿・今回の合宿設定は実装済み）
   - 15位以下が出た場合の配点方針の検討
+  - 参加者が合宿途中で入れ替わった場合の「今回の合宿設定」再編集の扱い
+    （現時点では上書き確認のみ。結果と紐づいた後の編集制限は未検討）
 ================================================================================
 -->
 <!DOCTYPE html>
@@ -149,6 +155,34 @@
     font-weight: bold; cursor: pointer; letter-spacing: 1px; margin-top: 4px;
   }
   .btn:active { opacity: 0.85; }
+
+  /* 参加者選択（トグルボタン） */
+  .member-checks { display: flex; flex-wrap: wrap; gap: 6px; }
+  .member-check-btn {
+    background: #f0ede4; border: 1px solid #ddd;
+    border-radius: 20px; padding: 6px 14px;
+    font-size: 0.84rem; cursor: pointer;
+    font-family: inherit; color: #555;
+  }
+  .member-check-btn.selected { background: #2c3e50; color: #fff; border-color: #2c3e50; }
+  #participant-count { font-size: 0.82rem; color: #888; margin: 8px 0 14px; }
+  #participant-count.over { color: #c0392b; font-weight: bold; }
+
+  /* 対局者名簿 */
+  .roster-item {
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid #ddd8cc; border-radius: 8px;
+    padding: 6px 8px; margin-bottom: 6px;
+  }
+  .roster-name-wrap { flex: 1; min-width: 0; }
+  .roster-item input.roster-name { width: 100%; padding: 8px; box-sizing: border-box; }
+  .roster-id { font-size: 0.66rem; color: #bbb; font-family: monospace; margin: 3px 0 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .roster-item select.roster-rank { width: 78px; flex-shrink: 0; padding: 0 2px; font-size: 0.76rem; box-sizing: border-box; }
+  .roster-del-btn {
+    width: 30px; height: 30px; flex-shrink: 0; border: none; border-radius: 6px;
+    background: #f0ede4; color: #999; font-size: 0.9rem; cursor: pointer;
+  }
+  .roster-del-btn:active { background: #e74c3c; color: #fff; }
 
   #setup-banner {
     background: #fff3cd; border: 1px solid #ffc107; color: #856404;
@@ -262,13 +296,19 @@
       </div>
 
       <h3>今回の合宿設定</h3>
-      <p class="note">開催日・参加者選択・回戦数の確定は次のステップで実装します。</p>
-      <div class="placeholder">
-        ここに以下を実装予定：<br>
-        ・開催日<br>
-        ・参加者選択（合宿専用名簿から選択、人数は可変）<br>
-        ・囲碁の回戦数（参加人数から自動算出した目安を表示し、確定後は固定）
+      <p class="note">参加者は下の対局者名簿から選びます。名簿の追加・編集は「管理者の仕事」内で行います。</p>
+      <div class="fg"><label>開催日</label><input id="gs-event-date" type="date"></div>
+      <div class="fg">
+        <label>参加者</label>
+        <div class="member-checks" id="gs-participants"></div>
+        <div id="participant-count"></div>
       </div>
+      <div class="fg">
+        <label>囲碁の回戦数</label>
+        <input id="gs-igo-rounds" type="number" min="1" max="10" inputmode="numeric">
+        <p class="note" id="gs-rounds-hint" style="margin-top:6px">参加者を選ぶと目安が自動で入ります。必要なら手動で上書きできます。</p>
+      </div>
+      <button class="btn" id="save-setup">保存して全員に同期</button>
 
       <div id="admin-toggle" style="margin-top:24px">
         <span id="admin-arrow">▶</span>
@@ -276,8 +316,14 @@
       </div>
       <div id="admin-body" style="display:none;margin-top:16px">
         <h3>対局者名簿</h3>
-        <p class="note">大石道場杯とは別の、合宿専用の名簿です。次のステップで実装します。</p>
-        <div class="placeholder">tournament.htmlの対局者名簿と同じ形式（名前・段位・ID）を予定</div>
+        <p class="note">大石道場杯とは別の、合宿専用の名簿です。合宿に参加しうる人をあらかじめ登録しておきます（段位は任意・囲碁の参考情報）。各行のIDは対局者を名前ではなく識別するための管理用の番号です（先頭8文字を表示）。</p>
+        <div id="roster-list"></div>
+        <div class="fg" style="display:flex;gap:8px;align-items:flex-end;margin-top:10px">
+          <div style="flex:1"><label>名前</label><input id="roster-new-name" type="text" placeholder="名前"></div>
+          <div style="width:78px"><label>段位</label><select id="roster-new-rank"><option value="">－</option><option value="初段">初段</option><option value="二段">二段</option><option value="三段">三段</option><option value="四段">四段</option><option value="五段">五段</option><option value="六段">六段</option><option value="七段">七段</option><option value="八段">八段</option><option value="九段">九段</option></select></div>
+          <button class="btn" id="roster-add-btn" style="width:auto;padding:10px 16px;margin:0;flex-shrink:0">追加</button>
+        </div>
+        <button class="btn" id="roster-save-btn" style="background:#b89752;margin-top:12px">名簿の変更を保存して同期</button>
 
         <h3 style="margin-top:24px">重み設定</h3>
         <p class="note">囲碁・麻雀それぞれの重み。点棒のチップレート設定と同じ扱いで、シーズンごとに保存されます。</p>
@@ -311,15 +357,36 @@ const firebaseConfig = {
 };
 
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
-let gasshukuRef = null;
+
+// ---------- State ----------
+// 合宿専用のFirebaseノード（大石道場杯の tournament/ とは完全に分離する）
+let roster = {};   // { id: { name, rank } }
+let state = { eventDate: "", participantIds: [], igoRounds: null };
+let rosterRef = null, stateRef = null;
+let editingRoster = false, editingSetup = false;
+let rosterLoaded = false, stateLoaded = false;
 
 if (isConfigured) {
   try {
     firebase.initializeApp(firebaseConfig);
-    // 合宿専用のFirebaseノード（大石道場杯の tournament/ とは分離する）
-    gasshukuRef = firebase.database().ref("gasshuku/state");
-    gasshukuRef.on("value", () => {
-      setSyncStatus(true);
+    rosterRef = firebase.database().ref("gasshuku/roster");
+    stateRef  = firebase.database().ref("gasshuku/state");
+
+    rosterRef.on("value", snap => {
+      roster = snap.val() || {};
+      rosterLoaded = true;
+      onDataReady();
+    }, () => setSyncStatus(false));
+
+    stateRef.on("value", snap => {
+      const data = snap.val();
+      state = {
+        eventDate:      (data && typeof data.eventDate === "string") ? data.eventDate : "",
+        participantIds: (data && Array.isArray(data.participantIds)) ? data.participantIds : [],
+        igoRounds:      (data && typeof data.igoRounds === "number") ? data.igoRounds : null
+      };
+      stateLoaded = true;
+      onDataReady();
     }, () => setSyncStatus(false));
   } catch(e) {
     console.error("Firebase init failed:", e);
@@ -328,7 +395,21 @@ if (isConfigured) {
 } else {
   document.getElementById("setup-banner").style.display = "block";
   setSyncStatus(false);
+  renderRosterList();
+  renderParticipants();
 }
+
+// roster・state の両方が揃うたびに呼ばれる
+function onDataReady() {
+  if (!rosterLoaded || !stateLoaded) return;
+  if (!editingRoster) renderRosterList();
+  renderParticipants();
+  if (!editingSetup) fillSetupInputs();
+  setSyncStatus(true);
+}
+
+function pushRoster() { if (rosterRef) rosterRef.set(roster); }
+function pushState()  { if (stateRef)  stateRef.set(state); }
 
 function setSyncStatus(online) {
   const dot = document.getElementById("sync-dot");
@@ -369,6 +450,181 @@ function showToast(msg) {
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.style.display = "none", 2500);
 }
+
+// ---------- 共通ヘルパー ----------
+function escapeHtml(s) {
+  return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+const RANK_SELECT_OPTIONS = ["","初段","二段","三段","四段","五段","六段","七段","八段","九段"];
+function rosterIdsSorted() {
+  return Object.keys(roster).sort((a, b) => (roster[a].name || "").localeCompare((roster[b].name || ""), "ja"));
+}
+
+// ---------- 対局者名簿 ----------
+function rosterItemHTML(id) {
+  const p = roster[id] || { name: "", rank: "" };
+  const opts = RANK_SELECT_OPTIONS.map(r => `<option value="${r}"${p.rank===r?" selected":""}>${r || "－"}</option>`).join("");
+  return `
+    <div class="roster-item" data-id="${id}">
+      <div class="roster-name-wrap">
+        <input type="text" class="roster-name" value="${escapeHtml(p.name || "")}" placeholder="名前">
+        <div class="roster-id" title="${id}">ID: ${id.slice(0, 8)}</div>
+      </div>
+      <select class="roster-rank">${opts}</select>
+      <button type="button" class="roster-del-btn" data-id="${id}">✕</button>
+    </div>`;
+}
+
+function renderRosterList() {
+  const el = document.getElementById("roster-list");
+  if (!el) return;
+  const ids = rosterIdsSorted();
+  el.innerHTML = ids.length
+    ? ids.map(rosterItemHTML).join("")
+    : `<p class="note" style="margin:0">まだ登録された対局者がいません。下のフォームから追加してください。</p>`;
+
+  el.querySelectorAll(".roster-name, .roster-rank").forEach(input => {
+    input.addEventListener("focus", () => editingRoster = true);
+    input.addEventListener("blur",  () => editingRoster = false);
+  });
+  el.querySelectorAll(".roster-del-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.id;
+      const name = (roster[id] && roster[id].name) || "この対局者";
+      if (!confirm(`${name}を名簿から削除しますか？（過去の合宿記録には影響しません）`)) return;
+      delete roster[id];
+      pushRoster();
+      // 現在の参加者選択に含まれていれば外す
+      state.participantIds = state.participantIds.filter(pid => pid !== id);
+      pushState();
+      showToast(`${name}を削除しました`);
+    });
+  });
+}
+
+document.getElementById("roster-add-btn").addEventListener("click", () => {
+  const nameInput = document.getElementById("roster-new-name");
+  const rankSelect = document.getElementById("roster-new-rank");
+  const name = nameInput.value.trim();
+  if (!name) { showToast("名前を入力してください"); return; }
+  const id = crypto.randomUUID();
+  roster[id] = { name, rank: rankSelect.value };
+  pushRoster();
+  nameInput.value = "";
+  rankSelect.value = "";
+  renderRosterList();
+  renderParticipants();
+  showToast(`${name}を名簿に追加しました`);
+});
+
+document.getElementById("roster-save-btn").addEventListener("click", () => {
+  document.querySelectorAll("#roster-list .roster-item").forEach(el => {
+    const id = el.dataset.id;
+    const name = el.querySelector(".roster-name").value.trim();
+    const rank = el.querySelector(".roster-rank").value;
+    if (roster[id]) roster[id] = { name, rank };
+  });
+  pushRoster();
+  renderParticipants();
+  showToast("名簿の変更を保存し、全員に同期しました！");
+});
+
+// ---------- 今回の合宿設定：参加者選択 ----------
+function renderParticipants() {
+  const wrap = document.getElementById("gs-participants");
+  if (!wrap) return;
+  const ids = rosterIdsSorted();
+  wrap.innerHTML = ids.length
+    ? ids.map(id => {
+        const p = roster[id];
+        const label = p.rank ? `${escapeHtml(p.name)}（${escapeHtml(p.rank)}）` : escapeHtml(p.name);
+        const selected = state.participantIds.includes(id);
+        return `<button type="button" class="member-check-btn ${selected ? "selected" : ""}" data-id="${id}">${label}</button>`;
+      }).join("")
+    : `<p class="note" style="margin:0">名簿に対局者を登録してください（管理者の仕事内）。</p>`;
+
+  wrap.querySelectorAll(".member-check-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      editingSetup = true;
+      const id = btn.dataset.id;
+      if (state.participantIds.includes(id)) {
+        state.participantIds = state.participantIds.filter(pid => pid !== id);
+      } else {
+        state.participantIds = [...state.participantIds, id];
+      }
+      btn.classList.toggle("selected");
+      updateParticipantCount();
+      updateRoundsSuggestion();
+    });
+  });
+  updateParticipantCount();
+}
+
+function updateParticipantCount() {
+  const el = document.getElementById("participant-count");
+  if (!el) return;
+  const n = state.participantIds.length;
+  el.textContent = `現在 ${n}人選択中`;
+  el.classList.toggle("over", n > 14);
+  if (n > 14) el.textContent += "（目安の14人を超えています。実施は可能ですが回戦数の目安がやや粗くなります）";
+}
+
+// 参加人数からスイス式の回戦数の目安を計算する。
+// log2(人数)を切り上げてから+1し、上位・下位まで一意な順位がつきやすいよう余裕を持たせる。
+function suggestedRounds(n) {
+  if (n < 2) return 1;
+  return Math.ceil(Math.log2(n)) + 1;
+}
+
+function updateRoundsSuggestion() {
+  const input = document.getElementById("gs-igo-rounds");
+  const hint  = document.getElementById("gs-rounds-hint");
+  if (!input || !hint) return;
+  const n = state.participantIds.length;
+  if (n === 0) {
+    hint.textContent = "参加者を選ぶと目安が自動で入ります。必要なら手動で上書きできます。";
+    return;
+  }
+  const suggested = suggestedRounds(n);
+  // まだ手動で触っていない・保存済みの値がない場合のみ、自動で目安を入れる
+  if (!input.dataset.touched && (input.value === "" || Number(input.value) === Number(input.dataset.lastSuggested || ""))) {
+    input.value = suggested;
+  }
+  input.dataset.lastSuggested = suggested;
+  hint.textContent = `参加${n}人の目安：${suggested}回戦（手動で変更できます）`;
+}
+
+document.getElementById("gs-igo-rounds").addEventListener("input", function() {
+  editingSetup = true;
+  this.dataset.touched = "1";
+});
+document.getElementById("gs-igo-rounds").addEventListener("focus", () => editingSetup = true);
+document.getElementById("gs-event-date").addEventListener("focus", () => editingSetup = true);
+document.getElementById("gs-event-date").addEventListener("blur",  () => editingSetup = false);
+
+function fillSetupInputs() {
+  document.getElementById("gs-event-date").value = state.eventDate || "";
+  const roundsInput = document.getElementById("gs-igo-rounds");
+  roundsInput.value = state.igoRounds || "";
+  roundsInput.dataset.touched = state.igoRounds ? "1" : "";
+  updateRoundsSuggestion();
+}
+
+document.getElementById("save-setup").addEventListener("click", () => {
+  const wasConfirmed = !!state.igoRounds && state.participantIds.length > 0;
+  if (wasConfirmed && !confirm("すでに設定済みの合宿情報を上書きします。対局結果がある場合は影響する可能性があります。よろしいですか？")) return;
+
+  const date = document.getElementById("gs-event-date").value;
+  const rounds = parseInt(document.getElementById("gs-igo-rounds").value, 10);
+  if (state.participantIds.length === 0) { showToast("参加者を選んでください"); return; }
+  if (!rounds || rounds < 1) { showToast("回戦数を正しく入力してください"); return; }
+
+  state.eventDate = date;
+  state.igoRounds = rounds;
+  editingSetup = false;
+  pushState();
+  showToast("合宿設定を保存し、全員に同期しました！");
+});
 </script>
 </body>
 </html>
