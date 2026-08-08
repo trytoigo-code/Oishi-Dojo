@@ -1,0 +1,374 @@
+<!--
+================================================================================
+  このアプリについて
+  大石道場合宿 — 設計思想と共同編集の進め方
+================================================================================
+
+【アプリの目的】
+  大石道場の合宿（1泊2日で行うことが多い）で、囲碁（スイス式）と麻雀（回ごとの
+  自由対局）の両方の結果を記録し、合宿ごとの総合順位・シーズン内順位・全期間の
+  通算順位を管理するアプリ。大石道場杯（tournament.html）とは別イベント・
+  別の対局者名簿として運用する。
+
+【対局形式】
+  ▼囲碁パート（スイス式）
+    参加人数（〜14人程度を想定）から回戦数の目安を自動表示し、合宿設定時に
+    西さんが回戦数を確定する（以降その合宿中は固定）。
+    第1回戦はシード順／ランダムで組み、以降は「同成績同士・再戦回避」で
+    自動組み合わせを生成する。ただし次回戦の組み合わせは、前回戦の全結果が
+    揃うまで生成されない。
+    不戦敗は基本なし（時間差で対局して結果を埋める運用）。
+    最終順位の決定は「勝数 → 直接対決 → Buchholz（対戦相手の勝数合計）→
+    機械的な基準（登録順等）」の順でタイブレークする。
+
+  ▼麻雀パート（回ごとの自由対局記録）
+    4人打ちが基本単位だが、「2位・3位が抜けて次の人が入る」ような
+    入れ替わり・抜け番ありの遊び方を想定。半チャンごとにその場の4人を
+    選んで結果を記録する（既存の点棒＝mahjong.htmlの入力方式を踏襲）。
+    誰が何回打ったかに関わらず、対局pt＋チップ換算ptの総合ポイントで
+    合宿内の順位を出す。
+
+  ▼合宿の総合順位
+    囲碁順位・麻雀順位をそれぞれ固定配点表でポイント化し、囲碁・麻雀の
+    重み（管理者設定・デフォルト同値）を掛けて合算する。
+    配点表（1〜14位、キリの良い数字を優先）：
+      1位100 / 2位80 / 3位60 / 4位50 / 5位40 / 6位30 / 7位25 / 8位20 /
+      9位16 / 10位13 / 11位10 / 12位7 / 13位4 / 14位2
+    15位以下が出る場合の配点は未定（今後の課題）。
+
+  ▼シーズン
+    西さんが手動で区切る（igo.html/mahjong.htmlと同じ運用）。
+    重みの値はシーズンごとに保存され、過去シーズンの総合順位は当時の
+    重みのまま再計算される（後から重みを変えても過去の結果は変わらない）。
+    シーズン内の囲碁／麻雀／総合順位と、全期間の通算順位の両方を出す。
+
+【対局者名簿】
+  大石道場杯（tournament.html）とは別に、合宿専用の名簿を持つ
+  （tournament/roster とは別のFirebaseノードで管理）。
+
+【過去の合宿】
+  tournament.htmlの「📚過去の大会」タブと同じ3層構造を踏襲する：
+    一覧（直近6件＋もっと見る）→ 合宿ごとの詳細（囲碁・麻雀それぞれの結果、
+    読み取り専用）→ 全期間の通算成績（囲碁／麻雀／総合をそれぞれ集計）
+
+【利用環境】
+  - スマホ利用を最優先とする（モバイルファースト）
+  - GitHub Pages でホスティング（単一 gasshuku.html で完結）
+  - Firebase Realtime Database によるリアルタイム同期
+    （igo.html/mahjong.html/tournament.htmlと同じプロジェクトを使用）
+
+【セキュリティ】
+  - 合言葉認証あり（他アプリと共通の合言葉）
+  - 認証情報はブラウザのlocalStorageに保存される
+
+【技術構成】
+  - バニラJS（React・Babel 不使用）
+  - Firebase Realtime Database（tournament.html/igo.html/mahjong.htmlと
+    同じ firebase-app-compat.js 10.12.0 系を使用）
+  - 外部ライブラリなし・ビルド不要・1ファイル完結
+
+【共同編集の進め方】
+  このアプリは、ユーザーと生成AIが対話しながら少しずつ育てていくものです。
+  以下は、その共同作業をうまく続けるための共通認識です。
+
+  ・このアプリの文脈と歴史を理解した上で提案する
+  ・変更の意図と影響範囲を共有しながら進める
+  ・小さな積み重ねを大切にし、一度に大きく変えない
+  ・既存の操作感や雰囲気はできるだけ引き継ぐ（大石道場杯・星取・点棒の
+    UIパターンを積極的に流用する）
+  ・新しい技術より、長く使い続けられることを優先する
+  ・機能を追加・変更したら「主な機能」と「今後の改良候補」を合わせて更新する
+
+【主な機能（現時点）】
+  - タブ構成：⚫囲碁／🀄麻雀／🏅総合／📚過去の合宿／⚙️設定
+  - 現時点では骨組みのみ。各タブの中身（スイス式ロジック・麻雀記録・
+    総合ポイント計算・アーカイブ表示）は次のステップで実装する。
+  - 合言葉認証・Firebase同期ステータス表示・トースト通知・管理者メニュー
+    折りたたみなど、山あるき／大石道場共通のUI部品はこの段階で導入済み。
+
+【今後の改良候補】
+  - 囲碁パート：スイス式ペアリングロジック・タイブレーク計算の実装
+  - 麻雀パート：回ごとの記録入力・履歴表示の実装
+  - 総合パート：配点表に基づくポイント計算・重み設定UIの実装
+  - 過去の合宿タブ：アーカイブ一覧・詳細展開・全期間通算成績の実装
+  - 設定タブ：合宿専用名簿・重み設定・回戦数手動上書き・シーズン管理・
+    結果リセット・完全リセット・データエクスポートの実装
+  - 15位以下が出た場合の配点方針の検討
+================================================================================
+-->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>大石道場合宿</title>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", YuGothic, sans-serif;
+    background: #fcfaf2; color: #333;
+  }
+  #app { max-width: 500px; margin: 0 auto; min-height: 100vh; display: flex; flex-direction: column; }
+
+  #header { background: #2c3e50; color: #fff; padding: 14px 16px 10px; text-align: center; position: sticky; top: 0; z-index: 101; }
+  #header h1 { font-size: 1.1rem; letter-spacing: 2px; font-weight: bold; }
+  #sync-row { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 5px; }
+  #sync-dot { width: 8px; height: 8px; border-radius: 50%; background: #2ecc71; display: inline-block; }
+  #sync-label { font-size: 0.7rem; color: #aed6f1; }
+
+  #nav { display: flex; background: #f1f0ea; border-bottom: 1px solid #e0dbcd; position: sticky; top: 0; z-index: 100; overflow-x: auto; }
+  .tab-btn {
+    flex: 1; padding: 11px 4px; border: none; background: none;
+    font-size: 0.78rem; font-weight: bold; color: #777; cursor: pointer;
+    white-space: nowrap; border-bottom: 3px solid transparent;
+  }
+  .tab-btn.active { color: #2c3e50; background: #fff; border-bottom-color: #b89752; }
+
+  #content { padding: 18px 16px; flex: 1; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  h3 { border-left: 4px solid #b89752; padding-left: 8px; margin-bottom: 12px; color: #2c3e50; font-size: 1rem; }
+  .note { font-size: 0.8rem; color: #888; margin: -6px 0 14px; line-height: 1.5; }
+  .placeholder {
+    background: #f1f0ea; border: 1px dashed #ccc4ac; border-radius: 8px;
+    padding: 16px; font-size: 0.85rem; color: #999; line-height: 1.7;
+  }
+
+  .fg { margin-bottom: 12px; }
+  label { display: block; margin-bottom: 4px; font-weight: bold; font-size: 0.86rem; color: #444; }
+  input, select {
+    width: 100%; padding: 10px; border: 1px solid #ddd8cc;
+    border-radius: 6px; font-size: 1rem; background: #fff;
+  }
+  .btn {
+    width: 100%; padding: 12px; background: #2c3e50; color: #fff;
+    border: none; border-radius: 6px; font-size: 0.95rem;
+    font-weight: bold; cursor: pointer; letter-spacing: 1px; margin-top: 4px;
+  }
+  .btn:active { opacity: 0.85; }
+
+  #setup-banner {
+    background: #fff3cd; border: 1px solid #ffc107; color: #856404;
+    padding: 14px 16px; border-radius: 8px; margin-bottom: 16px;
+    font-size: 0.85rem; line-height: 1.7; display: none;
+  }
+
+  #admin-toggle {
+    cursor: pointer; padding: 12px 0; display: flex; align-items: center; gap: 8px;
+    color: #2c3e50; font-weight: bold; font-size: 1rem; border-bottom: 1px solid #e0dbcd;
+  }
+
+  #toast {
+    position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
+    background: #2c3e50; color: #fff; padding: 10px 18px;
+    border-radius: 20px; font-size: 0.88rem; z-index: 999;
+    display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+</style>
+</head>
+<body>
+<script>
+(function(){
+  var KEY = 'gosenrigue_auth';
+  var PASS = 'ごせんりーぐ';
+  if(localStorage.getItem(KEY) !== 'ok'){
+    var input = prompt('合言葉を入力してください');
+    if(input === PASS){
+      localStorage.setItem(KEY, 'ok');
+    } else {
+      document.documentElement.innerHTML = '<body style="font-family:sans-serif;text-align:center;padding:60px"><h2>アクセスできません</h2></body>';
+      throw new Error('access denied');
+    }
+  }
+})();
+</script>
+<div id="app">
+
+  <div id="header">
+    <h1>🏕️ 大石道場合宿</h1>
+    <div id="sync-row"><span id="sync-dot"></span><span id="sync-label">接続中...</span></div>
+  </div>
+
+  <div id="nav">
+    <button class="tab-btn active" data-tab="igo">⚫囲碁</button>
+    <button class="tab-btn" data-tab="mahjong">🀄麻雀</button>
+    <button class="tab-btn" data-tab="sogo">🏅総合</button>
+    <button class="tab-btn" data-tab="archive">📚過去の合宿</button>
+    <button class="tab-btn" data-tab="setup">⚙️設定</button>
+  </div>
+
+  <div id="content">
+
+    <!-- ⚫囲碁パート（スイス式） -->
+    <div class="panel active" id="panel-igo">
+      <h3>囲碁（スイス式）</h3>
+      <p class="note">回戦タブ・組み合わせ表示・勝者選択は次のステップで実装します。</p>
+      <div class="placeholder">
+        ここに以下を実装予定：<br>
+        ・回戦タブ（合宿設定で確定した回戦数ぶん）<br>
+        ・各回戦の組み合わせカード（両者揃ったらタップで勝者選択）<br>
+        ・次回戦は前回戦の全結果が揃うまで生成しない<br>
+        ・今回の合宿の囲碁順位（勝数→直接対決→Buchholz→機械的基準）
+      </div>
+    </div>
+
+    <!-- 🀄麻雀パート（回ごとの自由対局記録） -->
+    <div class="panel" id="panel-mahjong">
+      <h3>麻雀（回ごとの記録）</h3>
+      <p class="note">対局入力・履歴表示は次のステップで実装します。</p>
+      <div class="placeholder">
+        ここに以下を実装予定：<br>
+        ・半チャンごとに卓の4人を選んで結果入力（点棒と同じ入力方式）<br>
+        ・入れ替わり・抜け番に対応した対局履歴<br>
+        ・今回の合宿の麻雀順位（総合ポイント順）
+      </div>
+    </div>
+
+    <!-- 🏅総合 -->
+    <div class="panel" id="panel-sogo">
+      <h3>総合順位</h3>
+      <p class="note">配点表に基づくポイント計算は次のステップで実装します。</p>
+      <div class="placeholder">
+        配点表（確定済み）：<br>
+        1位100 / 2位80 / 3位60 / 4位50 / 5位40 / 6位30 / 7位25 / 8位20 /
+        9位16 / 10位13 / 11位10 / 12位7 / 13位4 / 14位2<br><br>
+        ここに以下を実装予定：<br>
+        ・今回の合宿の総合順位（囲碁ポイント×重み＋麻雀ポイント×重み）<br>
+        ・シーズン内の総合順位（合宿ごとの総合ポイントを合算）<br>
+        ・全期間の通算順位
+      </div>
+    </div>
+
+    <!-- 📚過去の合宿 -->
+    <div class="panel" id="panel-archive">
+      <h3>過去の合宿</h3>
+      <p class="note">アーカイブ一覧・詳細展開・全期間通算成績は次のステップで実装します。</p>
+      <div class="placeholder">
+        tournament.htmlの「過去の大会」タブと同じ3層構造を予定：<br>
+        ・一覧（直近6件＋もっと見る）<br>
+        ・合宿ごとの詳細（囲碁・麻雀それぞれの結果、読み取り専用）<br>
+        ・全期間の通算成績（囲碁／麻雀／総合をそれぞれ集計）
+      </div>
+    </div>
+
+    <!-- ⚙️設定 -->
+    <div class="panel" id="panel-setup">
+      <div id="setup-banner">
+        ⚙️ <strong>Firebase未設定 — ローカル動作中</strong><br>
+        全員でリアルタイム共有するには <code>firebaseConfig</code> を設定してください。
+      </div>
+
+      <h3>今回の合宿設定</h3>
+      <p class="note">開催日・参加者選択・回戦数の確定は次のステップで実装します。</p>
+      <div class="placeholder">
+        ここに以下を実装予定：<br>
+        ・開催日<br>
+        ・参加者選択（合宿専用名簿から選択、人数は可変）<br>
+        ・囲碁の回戦数（参加人数から自動算出した目安を表示し、確定後は固定）
+      </div>
+
+      <div id="admin-toggle" style="margin-top:24px">
+        <span id="admin-arrow">▶</span>
+        <span>管理者の仕事</span>
+      </div>
+      <div id="admin-body" style="display:none;margin-top:16px">
+        <h3>対局者名簿</h3>
+        <p class="note">大石道場杯とは別の、合宿専用の名簿です。次のステップで実装します。</p>
+        <div class="placeholder">tournament.htmlの対局者名簿と同じ形式（名前・段位・ID）を予定</div>
+
+        <h3 style="margin-top:24px">重み設定</h3>
+        <p class="note">囲碁・麻雀それぞれの重み。点棒のチップレート設定と同じ扱いで、シーズンごとに保存されます。</p>
+        <div class="placeholder">デフォルトは囲碁1.0・麻雀1.0。次のステップで実装します。</div>
+
+        <h3 style="margin-top:24px">シーズン管理</h3>
+        <p class="note">西さんが手動で区切ります（igo.html/mahjong.htmlと同じ運用）。次のステップで実装します。</p>
+        <div class="placeholder">シーズン終了時に重みの値ごとアーカイブする想定</div>
+
+        <h3 style="margin-top:24px">結果のリセット／完全リセット</h3>
+        <div class="placeholder">tournament.htmlと同じ2段階のリセットを予定</div>
+
+        <h3 style="margin-top:24px">データエクスポート</h3>
+        <div class="placeholder">JSONダウンロード（日付入りファイル名）を予定</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+<div id="toast"></div>
+
+<script>
+const firebaseConfig = {
+  apiKey:            "AIzaSyBSrQkPMPc-icuph244VBorNqRf2yP-U7Y",
+  authDomain:        "hiking-558a9.firebaseapp.com",
+  databaseURL:       "https://hiking-558a9-default-rtdb.firebaseio.com",
+  projectId:         "hiking-558a9",
+  storageBucket:     "hiking-558a9.firebasestorage.app",
+  messagingSenderId: "1066293850319",
+  appId:             "1:1066293850319:web:94409f01b194d5afe7c7ba"
+};
+
+const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
+let gasshukuRef = null;
+
+if (isConfigured) {
+  try {
+    firebase.initializeApp(firebaseConfig);
+    // 合宿専用のFirebaseノード（大石道場杯の tournament/ とは分離する）
+    gasshukuRef = firebase.database().ref("gasshuku/state");
+    gasshukuRef.on("value", () => {
+      setSyncStatus(true);
+    }, () => setSyncStatus(false));
+  } catch(e) {
+    console.error("Firebase init failed:", e);
+    setSyncStatus(false);
+  }
+} else {
+  document.getElementById("setup-banner").style.display = "block";
+  setSyncStatus(false);
+}
+
+function setSyncStatus(online) {
+  const dot = document.getElementById("sync-dot");
+  const lbl = document.getElementById("sync-label");
+  if (!isConfigured) { dot.style.background = "#e67e22"; lbl.textContent = "ローカルモード（Firebase未設定）"; return; }
+  if (online) {
+    dot.style.background = "#2ecc71";
+    const now = new Date();
+    lbl.textContent = `リアルタイム同期中 · ${now.getHours()}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+  } else { dot.style.background = "#e74c3c"; lbl.textContent = "オフライン"; }
+}
+function pad(n) { return String(n).padStart(2, "0"); }
+
+// ---------- タブ ----------
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+// ---------- 管理者メニュー開閉 ----------
+document.getElementById("admin-toggle").addEventListener("click", () => {
+  const body = document.getElementById("admin-body");
+  const arrow = document.getElementById("admin-arrow");
+  const isOpen = body.style.display !== "none";
+  body.style.display = isOpen ? "none" : "";
+  arrow.textContent = isOpen ? "▶" : "▼";
+});
+
+// ---------- トースト ----------
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById("toast");
+  el.textContent = msg; el.style.display = "block";
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.style.display = "none", 2500);
+}
+</script>
+</body>
+</html>
