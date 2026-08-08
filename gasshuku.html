@@ -94,7 +94,7 @@
       対局者×回戦のマス目表（横スクロール）で全回戦を一覧表示。各マスに対戦相手と
       勝敗（○/●）、未決着は「…」、回戦未生成は「－」、お休みの回は「お休み」を表示。
       行の並びは現在の順位順（勝数→直接対決→Buchholz（対戦相手の勝数合計）→
-      名前の五十音順でタイブレーク）。表の下に、回戦タブ＋対局カードで結果を入力する
+      今回の合宿設定で並べた参加者の順でタイブレーク）。表の下に、回戦タブ＋対局カードで結果を入力する
       セクションがある。1回戦はランダム、2回戦目以降は同成績同士・対戦済み回避で
       自動組み合わせ（避けられない場合は再戦を許容）。次の回戦は前の回戦の全結果が
       揃うまで生成しない。生成済みの回戦のうち、最新以外は結果の変更ができない
@@ -1098,15 +1098,15 @@ function computeIgoStandings(igoIds, rounds) {
     }
     return 0;
   }
-  const list = igoIds.map(id => ({
-    id, name: roster[id]?.name || "", w: wins[id]||0, l: losses[id]||0, bh: buchholz(id)
+  const list = igoIds.map((id, i) => ({
+    id, idx: i, name: roster[id]?.name || "", w: wins[id]||0, l: losses[id]||0, bh: buchholz(id)
   }));
   list.sort((x, y) => {
     if (y.w !== x.w) return y.w - x.w;
     const d = directResult(x.id, y.id);
     if (d !== 0) return d;
     if (y.bh !== x.bh) return y.bh - x.bh;
-    return x.name.localeCompare(y.name, "ja");
+    return x.idx - y.idx; // 完全に並んだら「今回の合宿設定」で決めた参加者の並び順にする
   });
   return list;
 }
