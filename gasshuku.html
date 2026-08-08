@@ -94,15 +94,17 @@
   - 囲碁（スイス式、実装済み）
       対局者×回戦のマス目表（横スクロール）で全回戦を一覧表示。各マスに対戦相手と
       勝敗（○/●）、未決着は「…」、回戦未生成は「－」、お休みの回は「お休み」を表示。
-      行の並びは現在の順位順（勝数→直接対決→Buchholz（対戦相手の勝数合計）→
-      今回の合宿設定で並べた参加者の順でタイブレーク）。1局も決着していないうちは
-      順位列を「－」にする（まだ実力差が出ていないのに順位がついて見えるのを防ぐため）。
-      表の下に、回戦タブ＋対局カードで結果を入力するセクションがある。組み合わせに
-      ランダム要素はなく、常に「今回の合宿設定」で並べた参加者の順を基準に決める：
-      1回戦はその並び順のまま隣同士（1位vs2位、3位vs4位…）を組み、2回戦目以降は
-      同成績同士・対戦済み回避（避けられない場合は再戦を許容）を、その並び順の中で
-      適用する。次の回戦は前の回戦の全結果が揃うまで生成しない。生成済みの回戦のうち、
-      最新以外は結果の変更ができない（過去回戦の修正は今後の課題）。奇数人数のときは
+      行の並びは「今回の合宿設定」で決めた参加者の並びに固定し、結果を入力しても
+      行そのものは動かさない。順位（左端の列）だけを「勝数→直接対決→Buchholz
+      （対戦相手の勝数合計）→今回の合宿設定で並べた参加者の順」で算出して表示する。
+      1局も決着していないうちは順位列を「－」にする（まだ実力差が出ていないのに
+      順位がついて見えるのを防ぐため）。表の下に、回戦タブ＋対局カードで結果を
+      入力するセクションがある。組み合わせにランダム要素はなく、常に「今回の合宿
+      設定」で並べた参加者の順を基準に決める：1回戦はその並び順のまま隣同士
+      （1位vs2位、3位vs4位…）を組み、2回戦目以降は同成績同士・対戦済み回避
+      （避けられない場合は再戦を許容）を、その並び順の中で適用する。次の回戦は
+      前の回戦の全結果が揃うまで生成しない。生成済みの回戦のうち、最新以外は
+      結果の変更ができない（過去回戦の修正は今後の課題）。奇数人数のときは
       1人がbye（勝敗に影響しない・不戦敗にはしない）。
   - 麻雀・総合・過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
   - 設定タブ（管理者の仕事）：重み設定（囲碁・麻雀それぞれの重み。デフォルト
@@ -1018,10 +1020,17 @@ function renderIgoTab() {
   const rounds = state.igoResults || [];
   if (igoActiveRoundIdx > rounds.length) igoActiveRoundIdx = rounds.length;
 
-  // 対局者×回戦のマス目表（一覧表示）。行の並びは現在の順位順。
+  // 対局者×回戦のマス目表（一覧表示）。行の並びは「今回の合宿設定」で決めた
+  // 参加者の並びに固定し、結果を入力しても動かさない。順位は別途算出して数字だけ差し替える。
   const standings = computeIgoStandings(igoIds, rounds);
+  const rankById = {};
+  standings.forEach((p, i) => { rankById[p.id] = i + 1; });
+  const fixedOrderList = igoIds.map(id => {
+    const s = standings.find(p => p.id === id);
+    return { id, name: roster[id]?.name || "", w: s ? s.w : 0, l: s ? s.l : 0, rank: rankById[id] || null };
+  });
   let html = `<p class="note" style="margin-top:0">〇＝勝ち／●＝負け／…＝結果待ち／－＝その回戦は未生成、を表します。</p>`;
-  html += igoMatrixTableHTML(standings, rounds, state.igoRounds);
+  html += igoMatrixTableHTML(fixedOrderList, rounds, state.igoRounds);
 
   // 結果入力（回戦タブ＋対局カード）
   html += `<h3 style="margin-top:22px">結果を入力</h3>`;
@@ -1132,7 +1141,8 @@ function computeIgoStandings(igoIds, rounds) {
 
 // 対局者×回戦のマス目表（横スクロール）。各マスには対戦相手と勝敗（○/●）、
 // 未決着なら「…」、回戦未生成なら「－」、その回戦がお休みなら「お休み」を表示する。
-// 行の並びは現在の順位順（勝数→直接対決→Buchholz）。
+// 行の並びは「今回の合宿設定」で決めた参加者の並びに固定（結果を入力しても行は動かさない）。
+// 順位（左端）だけを勝数→直接対決→Buchholzで算出して差し替える。
 function igoMatrixCell(id, roundIdx, rounds) {
   const round = rounds[roundIdx];
   if (!round) return `<td class="igo-cell-empty">－</td>`;
@@ -1151,14 +1161,14 @@ function igoMatrixCell(id, roundIdx, rounds) {
 function igoMatrixTableHTML(list, rounds, roundCount) {
   if (list.length === 0) return `<p style="color:#999;font-size:0.88rem">対局結果がまだありません。</p>`;
   // 1局も決着していないうちは、まだ実力差が出ていないのに順位がついて見えるのがおかしいため、
-  // 順位列は「－」にしておく（対局者の並びは今回の合宿設定の順のまま）。
+  // 順位列は「－」にしておく。行の並びは常に「今回の合宿設定」で決めた参加者の順で固定。
   const anyDecided = list.some(p => p.w > 0 || p.l > 0);
   const medals = ["🥇","🥈","🥉"];
   let head = `<tr><th>順位</th><th>対局者</th>`;
   for (let i = 0; i < roundCount; i++) head += `<th>第${i+1}<br>回戦</th>`;
   head += `<th>成績</th></tr>`;
-  const rows = list.map((p, i) => {
-    const rankCell = anyDecided ? (medals[i] || (i+1)) : "－";
+  const rows = list.map(p => {
+    const rankCell = anyDecided ? (medals[p.rank - 1] || p.rank) : "－";
     let row = `<tr><td>${rankCell}</td><td style="text-align:left;white-space:nowrap">${escapeHtml(p.name)}</td>`;
     for (let r = 0; r < roundCount; r++) row += igoMatrixCell(p.id, r, rounds);
     row += `<td style="white-space:nowrap">${p.w}勝${p.l}敗</td></tr>`;
