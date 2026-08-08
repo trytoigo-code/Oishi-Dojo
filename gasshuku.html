@@ -101,16 +101,24 @@
       （過去回戦の修正は今後の課題）。奇数人数のときは1人がbye（勝敗に影響しない・
       不戦敗にはしない）。
   - 麻雀・総合・過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
+  - 設定タブ（管理者の仕事）：重み設定（囲碁・麻雀それぞれの重み。デフォルト
+    囲碁1.0・麻雀1.0）、シーズン管理（西さんが手動で区切る。「今のシーズンを
+    終えて次を始める」でその時点の重みをFirebaseにアーカイブしてシーズン番号を
+    進める。重みの値自体は次シーズンにそのまま引き継がれる）、結果だけリセット
+    （今回の合宿の囲碁結果のみ消去、参加者・回戦数は保持）、完全リセット（今回の
+    合宿設定・結果・シーズン番号・重みをすべて初期化。対局者名簿は保持）、
+    データエクスポート（gasshukuノード全体をJSONダウンロード）を実装済み。
   - 合言葉認証・Firebase同期ステータス表示・トースト通知・管理者メニュー
     折りたたみなど、山あるき／大石道場共通のUI部品はこの段階で導入済み。
 
 【今後の改良候補】
   - 過去回戦の結果修正（現状は最新回戦のみ編集可、過去分は結果リセットしないと直せない）
   - 麻雀パート：回ごとの記録入力・履歴表示の実装
-  - 総合パート：配点表に基づくポイント計算・重み設定UIの実装
+  - 総合パート：配点表に基づくポイント計算UIの実装（重み設定自体は実装済み）
   - 過去の合宿タブ：アーカイブ一覧・詳細展開・全期間通算成績の実装
-  - 設定タブ：重み設定・シーズン管理・結果リセット・完全リセット・
-    データエクスポートの実装（対局者名簿・今回の合宿設定は実装済み）
+    （現状「新しい合宿にする」で今回の合宿をアーカイブする導線がまだ無く、
+    シーズン管理は重みの記録のみに留まっている。合宿単位のアーカイブを実装後、
+    シーズン内・全期間の囲碁／麻雀／総合順位もあわせて実装する）
   - 15位以下が出た場合の配点方針の検討
   - 参加者が合宿途中で入れ替わった場合の「今回の合宿設定」再編集の扱い
     （現時点では上書き確認のみ。結果と紐づいた後の編集制限は未検討）
@@ -396,18 +404,34 @@
         <button class="btn" id="roster-save-btn" style="background:#b89752;margin-top:12px">名簿の変更を保存して同期</button>
 
         <h3 style="margin-top:24px">重み設定</h3>
-        <p class="note">囲碁・麻雀それぞれの重み。点棒のチップレート設定と同じ扱いで、シーズンごとに保存されます。</p>
-        <div class="placeholder">デフォルトは囲碁1.0・麻雀1.0。次のステップで実装します。</div>
+        <p class="note">囲碁・麻雀それぞれの重み。合宿の総合順位は「囲碁ポイント×この重み＋麻雀ポイント×この重み」で計算されます。点棒のチップレート設定と同じ扱いで、シーズンごとに保存されます。</p>
+        <div class="fg" style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:0.86rem;font-weight:bold;color:#444;width:70px;flex-shrink:0">⚫囲碁</span>
+          <input id="weight-igo" type="number" step="0.1" min="0" style="text-align:center">
+        </div>
+        <div class="fg" style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:0.86rem;font-weight:bold;color:#444;width:70px;flex-shrink:0">🀄麻雀</span>
+          <input id="weight-mahjong" type="number" step="0.1" min="0" style="text-align:center">
+        </div>
+        <button class="btn" id="save-weights" style="background:#b89752">重みを保存して同期</button>
 
         <h3 style="margin-top:24px">シーズン管理</h3>
-        <p class="note">西さんが手動で区切ります（igo.html/mahjong.htmlと同じ運用）。次のステップで実装します。</p>
-        <div class="placeholder">シーズン終了時に重みの値ごとアーカイブする想定</div>
+        <p class="note">西さんが手動で区切ります（igo.html/mahjong.htmlと同じ運用）。シーズンを終えると、その時点の重みの値ごとアーカイブされ、次のシーズンが始まります（重みの値はそのまま引き継がれるので、必要ならそこで調整してください）。</p>
+        <div id="season-info" style="margin-bottom:12px;font-size:0.9rem;color:#2c3e50;font-weight:bold"></div>
+        <button class="btn" id="season-end-btn" style="background:#e67e22">今のシーズンを終えて次を始める</button>
+        <div id="past-seasons" style="margin-top:16px"></div>
 
-        <h3 style="margin-top:24px">結果のリセット／完全リセット</h3>
-        <div class="placeholder">tournament.htmlと同じ2段階のリセットを予定</div>
+        <h3 style="margin-top:24px">結果のリセット</h3>
+        <p class="note">今回の合宿の対局結果だけを消去します。参加者・回戦数の設定はそのまま残ります。入力ミスのやり直しにお使いください。</p>
+        <button class="btn" id="reset-results-btn" style="background:#e67e22">結果だけリセット</button>
+
+        <h3 style="margin-top:24px">完全リセット</h3>
+        <p class="note">テスト中など、すべてをやり直したいときに使います。今回の合宿設定・対局結果・シーズン番号・重みをすべて消去して最初の状態に戻します（対局者名簿は保持されます）。</p>
+        <button class="btn" id="full-reset-btn" style="background:#888">完全リセットする</button>
 
         <h3 style="margin-top:24px">データエクスポート</h3>
-        <div class="placeholder">JSONダウンロード（日付入りファイル名）を予定</div>
+        <p class="note">Firebaseのデータをファイルとして保存します。万が一のバックアップに使ってください。</p>
+        <button class="btn" id="export-btn" style="background:#2c3e50">JSONでダウンロード</button>
       </div>
     </div>
 
@@ -437,16 +461,18 @@ let roster = {};   // { id: { name, rank } }
 // [ [ {a, b, winner}, ... ], ... ]  a/bは名簿ID。bがnullなら不戦（bye）で winner は常に"bye"。
 // winnerは "a" | "b" | "bye" | null（未定）。
 // 配列の長さ＝これまでに生成済みの回戦数。最後の要素だけが編集可能（それより前は確定として扱う）。
-let state = { eventDate: "", participants: [], igoRounds: null, igoResults: [] };
-let rosterRef = null, stateRef = null;
-let editingRoster = false, editingSetup = false;
+// state.weights: 総合ポイント計算用の重み。state.season: 西さんが手動で区切るシーズン番号。
+let state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1 };
+let rosterRef = null, stateRef = null, seasonsRef = null;
+let editingRoster = false, editingSetup = false, editingWeights = false;
 let rosterLoaded = false, stateLoaded = false;
 
 if (isConfigured) {
   try {
     firebase.initializeApp(firebaseConfig);
-    rosterRef = firebase.database().ref("gasshuku/roster");
-    stateRef  = firebase.database().ref("gasshuku/state");
+    rosterRef  = firebase.database().ref("gasshuku/roster");
+    stateRef   = firebase.database().ref("gasshuku/state");
+    seasonsRef = firebase.database().ref("gasshuku/seasons");
 
     rosterRef.on("value", snap => {
       roster = snap.val() || {};
@@ -460,7 +486,12 @@ if (isConfigured) {
         eventDate:      (data && typeof data.eventDate === "string") ? data.eventDate : "",
         participants: normParticipants(data && data.participants),
         igoRounds:      (data && typeof data.igoRounds === "number") ? data.igoRounds : null,
-        igoResults:     (data && Array.isArray(data.igoResults)) ? data.igoResults : []
+        igoResults:     (data && Array.isArray(data.igoResults)) ? data.igoResults : [],
+        weights: {
+          igo:     (data && data.weights && typeof data.weights.igo === "number") ? data.weights.igo : 1,
+          mahjong: (data && data.weights && typeof data.weights.mahjong === "number") ? data.weights.mahjong : 1
+        },
+        season: (data && typeof data.season === "number") ? data.season : 1
       };
       stateLoaded = true;
       onDataReady();
@@ -482,6 +513,8 @@ function onDataReady() {
   if (!editingRoster) renderRosterList();
   renderParticipants();
   if (!editingSetup) fillSetupInputs();
+  if (!editingWeights) fillWeightInputs();
+  renderSeasonInfo();
   renderIgoTab();
   setSyncStatus(true);
 }
@@ -1111,6 +1144,119 @@ function igoMatrixTableHTML(list, rounds, roundCount) {
   return `<div class="matrix-wrap"><table>${head}${rows}</table></div>`;
 }
 
+// ============================================================
+//  重み設定
+// ============================================================
+function fillWeightInputs() {
+  const igoEl = document.getElementById("weight-igo");
+  const mjEl  = document.getElementById("weight-mahjong");
+  if (!igoEl || !mjEl) return;
+  igoEl.value = state.weights.igo;
+  mjEl.value  = state.weights.mahjong;
+}
+["weight-igo", "weight-mahjong"].forEach(id => {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.addEventListener("focus", () => editingWeights = true);
+  el.addEventListener("blur",  () => editingWeights = false);
+});
+document.getElementById("save-weights").addEventListener("click", () => {
+  const igoW = parseFloat(document.getElementById("weight-igo").value);
+  const mjW  = parseFloat(document.getElementById("weight-mahjong").value);
+  state.weights = {
+    igo:     isNaN(igoW) ? 1 : igoW,
+    mahjong: isNaN(mjW) ? 1 : mjW
+  };
+  editingWeights = false;
+  pushState();
+  showToast("重みを保存し、全員に同期しました！");
+});
+
+// ============================================================
+//  シーズン管理
+// ============================================================
+function renderSeasonInfo() {
+  const el = document.getElementById("season-info");
+  if (el) el.textContent = `現在：シーズン ${state.season}`;
+
+  const pastEl = document.getElementById("past-seasons");
+  if (!pastEl || !seasonsRef) return;
+  seasonsRef.once("value", snap => {
+    const data = snap.val();
+    if (!data) { pastEl.innerHTML = ""; return; }
+    const seasons = Object.values(data).sort((a, b) => b.season - a.season);
+    pastEl.innerHTML = `
+      <p style="font-size:0.85rem;font-weight:bold;color:#2c3e50;margin-bottom:8px">過去のシーズン</p>
+      ${seasons.map(s => `
+        <div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:0.85rem">
+          <strong>シーズン ${s.season}</strong>（終了：${escapeHtml(s.endDate || "")}）<br>
+          <span style="color:#666">重み：囲碁${s.weights?.igo ?? 1} ／ 麻雀${s.weights?.mahjong ?? 1}</span>
+        </div>`).join("")}`;
+  });
+}
+
+document.getElementById("season-end-btn").addEventListener("click", () => {
+  if (!confirm(`シーズン${state.season}を終えて、次のシーズンを始めます。\n現在の重み（囲碁${state.weights.igo}／麻雀${state.weights.mahjong}）がこのシーズンの記録として保存されます。\nよろしいですか？`)) return;
+  if (seasonsRef) {
+    const now = new Date();
+    const endDate = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
+    seasonsRef.child(String(state.season)).set({
+      season: state.season,
+      weights: { ...state.weights },
+      endDate
+    });
+  }
+  state.season = (state.season || 1) + 1;
+  // 重みの値はそのまま引き継ぐ（次のシーズンで調整したければ重み設定から変更する）
+  pushState();
+  renderSeasonInfo();
+  showToast(`シーズン${state.season - 1}を終え、シーズン${state.season}を開始しました。`);
+});
+
+// ============================================================
+//  結果のリセット／完全リセット
+// ============================================================
+document.getElementById("reset-results-btn").addEventListener("click", () => {
+  if (!confirm("今回の合宿の対局結果をすべて消去します。参加者・回戦数の設定はそのまま残ります。よろしいですか？")) return;
+  state.igoResults = [];
+  igoActiveRoundIdx = 0;
+  pushState();
+  renderIgoTab();
+  showToast("結果をリセットしました");
+});
+
+document.getElementById("full-reset-btn").addEventListener("click", () => {
+  if (!confirm("今回の合宿設定・対局結果・シーズン番号・重みをすべて消去して最初の状態に戻します（対局者名簿は保持されます）。\nこの操作は取り消せません。本当によいですか？")) return;
+  state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1 };
+  igoActiveRoundIdx = 0;
+  pushState();
+  fillSetupInputs();
+  fillWeightInputs();
+  renderIgoTab();
+  renderSeasonInfo();
+  showToast("完全リセットしました。");
+});
+
+// ============================================================
+//  データエクスポート
+// ============================================================
+document.getElementById("export-btn").addEventListener("click", () => {
+  if (!isConfigured) { showToast("データベースに接続されていません"); return; }
+  firebase.database().ref("gasshuku").once("value", snap => {
+    const data = snap.val();
+    if (!data) { showToast("エクスポートするデータがありません"); return; }
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: "application/json;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const date = new Date().toISOString().slice(0, 10);
+    a.href = url;
+    a.download = `gasshuku_backup_${date}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast("エクスポートしました");
+  });
+});
 </script>
 </body>
 </html>
