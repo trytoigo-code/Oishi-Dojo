@@ -489,11 +489,17 @@ function onDataReady() {
 function pushRoster() { if (rosterRef) rosterRef.set(roster); }
 function pushState()  { if (stateRef)  stateRef.set(state); }
 
-// Firebaseは配列をオブジェクト化して返すことがあるため、読み込み時に必ず配列へ正規化する
+// Firebaseは配列をオブジェクト化して返すことがあるため、読み込み時に必ず配列へ正規化する。
+// さらに、配列化する前の旧スキーマ（キー＝名簿ID、値に id を持たない）が
+// まだ残っている場合にも対応し、キーをidとして補って移行する。
 function normParticipants(v) {
   if (Array.isArray(v)) return v.filter(Boolean);
   if (v && typeof v === "object") {
-    return Object.keys(v).sort((a, b) => Number(a) - Number(b)).map(k => v[k]).filter(Boolean);
+    return Object.keys(v).map(k => {
+      const val = v[k];
+      if (!val) return null;
+      return val.id ? val : { id: k, igo: !!val.igo, mahjong: !!val.mahjong };
+    }).filter(Boolean);
   }
   return [];
 }
