@@ -14,7 +14,8 @@
   ▼囲碁パート（スイス式）
     参加人数（〜14人程度を想定）から回戦数の目安を自動表示し、合宿設定時に
     西さんが回戦数を確定する（以降その合宿中は固定）。
-    第1回戦はシード順／ランダムで組み、以降は「同成績同士・再戦回避」で
+    第1回戦は「今回の合宿設定」で並べた参加者の順番のまま隣同士を組み、以降は
+    「同成績同士・再戦回避」で
     自動組み合わせを生成する。ただし次回戦の組み合わせは、前回戦の全結果が
     揃うまで生成されない。
     不戦敗は基本なし（時間差で対局して結果を埋める運用）。
@@ -94,12 +95,15 @@
       対局者×回戦のマス目表（横スクロール）で全回戦を一覧表示。各マスに対戦相手と
       勝敗（○/●）、未決着は「…」、回戦未生成は「－」、お休みの回は「お休み」を表示。
       行の並びは現在の順位順（勝数→直接対決→Buchholz（対戦相手の勝数合計）→
-      今回の合宿設定で並べた参加者の順でタイブレーク）。表の下に、回戦タブ＋対局カードで結果を入力する
-      セクションがある。1回戦はランダム、2回戦目以降は同成績同士・対戦済み回避で
-      自動組み合わせ（避けられない場合は再戦を許容）。次の回戦は前の回戦の全結果が
-      揃うまで生成しない。生成済みの回戦のうち、最新以外は結果の変更ができない
-      （過去回戦の修正は今後の課題）。奇数人数のときは1人がbye（勝敗に影響しない・
-      不戦敗にはしない）。
+      今回の合宿設定で並べた参加者の順でタイブレーク）。1局も決着していないうちは
+      順位列を「－」にする（まだ実力差が出ていないのに順位がついて見えるのを防ぐため）。
+      表の下に、回戦タブ＋対局カードで結果を入力するセクションがある。組み合わせに
+      ランダム要素はなく、常に「今回の合宿設定」で並べた参加者の順を基準に決める：
+      1回戦はその並び順のまま隣同士（1位vs2位、3位vs4位…）を組み、2回戦目以降は
+      同成績同士・対戦済み回避（避けられない場合は再戦を許容）を、その並び順の中で
+      適用する。次の回戦は前の回戦の全結果が揃うまで生成しない。生成済みの回戦のうち、
+      最新以外は結果の変更ができない（過去回戦の修正は今後の課題）。奇数人数のときは
+      1人がbye（勝敗に影響しない・不戦敗にはしない）。
   - 麻雀・総合・過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
   - 設定タブ（管理者の仕事）：重み設定（囲碁・麻雀それぞれの重み。デフォルト
     囲碁1.0・麻雀1.0）、シーズン管理（西さんが手動で区切る。「今のシーズンを
@@ -892,18 +896,10 @@ document.getElementById("save-setup").addEventListener("click", () => {
 //  囲碁（スイス式）
 // ============================================================
 // 対象は「今回の合宿設定」で囲碁ON・かつ現在も名簿に存在する参加者。
-// 並び順は「今回の合宿設定」で決めた参加者の並び（対局そのものはランダムに組む）。
+// 並び順は「今回の合宿設定」で決めた参加者の並び。組み合わせもこの並び順を基準に決める
+// （ランダム要素なし。同成績同士の中でも、この並び順を維持したまま組む）。
 function igoParticipantIds() {
   return state.participants.filter(p => p.igo && roster[p.id]).map(p => p.id);
-}
-
-function shuffle(arr) {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
 }
 
 // これまでの確定済み対局から、対戦済みペアの集合を作る（bye・未決着は含まない）
@@ -937,13 +933,36 @@ function priorByeIds(rounds) {
 // 1回戦分の組み合わせを生成する。
 // 2回戦目以降は「同成績同士」を基本に、対戦済みの相手を避けて組む（避けられない場合は再戦を許容）。
 // 奇数人数のときは1人がbye（その回戦は対局なし・勝敗に影響しない）。不戦敗の自動判定はしない。
+// 1回戦は「今回の合宿設定」で並べた順番のまま、1位vs2位・3位vs4位…と隣同士を組む。
+// 2回戦目以降は同成績同士・対戦済み回避で組む（避けられない場合は再戦を許容）。
+// 奇数人数のときは1人がbye（その回戦は対局なし・勝敗に影響しない）。不戦敗の自動判定はしない。
 function generatePairing(igoIds, rounds) {
+  if (rounds.length === 0) return generateFirstRoundPairing(igoIds);
+  return generateSubsequentRoundPairing(igoIds, rounds);
+}
+
+function generateFirstRoundPairing(igoIds) {
+  let pool = [...igoIds];
+  let byeId = null;
+  if (pool.length % 2 === 1) {
+    byeId = pool[pool.length - 1];
+    pool = pool.slice(0, -1);
+  }
+  const matches = [];
+  for (let i = 0; i < pool.length; i += 2) {
+    matches.push({ a: pool[i], b: pool[i + 1], winner: null });
+  }
+  if (byeId) matches.push({ a: byeId, b: null, winner: "bye" });
+  return matches;
+}
+
+function generateSubsequentRoundPairing(igoIds, rounds) {
   const { wins } = igoScores(rounds);
   const played = playedPairSet(rounds);
   const byes = priorByeIds(rounds);
 
-  let pool = shuffle(igoIds);
-  pool.sort((a, b) => (wins[b]||0) - (wins[a]||0)); // 安定ソートなので同成績内はシャッフル順を維持
+  let pool = [...igoIds];
+  pool.sort((a, b) => (wins[b]||0) - (wins[a]||0)); // 安定ソートなので同成績内は表の並び順を維持
 
   let byeId = null;
   if (pool.length % 2 === 1) {
@@ -1131,12 +1150,16 @@ function igoMatrixCell(id, roundIdx, rounds) {
 
 function igoMatrixTableHTML(list, rounds, roundCount) {
   if (list.length === 0) return `<p style="color:#999;font-size:0.88rem">対局結果がまだありません。</p>`;
+  // 1局も決着していないうちは、まだ実力差が出ていないのに順位がついて見えるのがおかしいため、
+  // 順位列は「－」にしておく（対局者の並びは今回の合宿設定の順のまま）。
+  const anyDecided = list.some(p => p.w > 0 || p.l > 0);
   const medals = ["🥇","🥈","🥉"];
   let head = `<tr><th>順位</th><th>対局者</th>`;
   for (let i = 0; i < roundCount; i++) head += `<th>第${i+1}<br>回戦</th>`;
   head += `<th>成績</th></tr>`;
   const rows = list.map((p, i) => {
-    let row = `<tr><td>${medals[i] || (i+1)}</td><td style="text-align:left;white-space:nowrap">${escapeHtml(p.name)}</td>`;
+    const rankCell = anyDecided ? (medals[i] || (i+1)) : "－";
+    let row = `<tr><td>${rankCell}</td><td style="text-align:left;white-space:nowrap">${escapeHtml(p.name)}</td>`;
     for (let r = 0; r < roundCount; r++) row += igoMatrixCell(p.id, r, rounds);
     row += `<td style="white-space:nowrap">${p.w}勝${p.l}敗</td></tr>`;
     return row;
