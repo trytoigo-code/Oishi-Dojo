@@ -654,9 +654,26 @@ function renderParticipants() {
     });
   });
 
-  selWrap.innerHTML = state.participants.length
+  const invalidCount = state.participants.filter(p => !roster[p.id]).length;
+  const invalidBanner = invalidCount > 0
+    ? `<div class="note" style="background:#fdf1ef;border:1px solid #e0b3ac;color:#b03a2e;border-radius:8px;padding:10px 12px;margin-bottom:8px">
+        ⚠️ ${invalidCount}件、名簿に存在しない参加者があります（名簿を作り直した際などに残った古いデータの可能性）。
+        <button type="button" class="btn" id="clean-invalid-participants" style="margin-top:8px;background:#b03a2e">まとめて削除する</button>
+      </div>`
+    : "";
+
+  selWrap.innerHTML = invalidBanner + (state.participants.length
     ? state.participants.map((part, i) => participantItemHTML(part, i)).join("")
-    : `<p class="note" style="margin:0">まだ参加者が選ばれていません。上のリストから追加してください。</p>`;
+    : `<p class="note" style="margin:0">まだ参加者が選ばれていません。上のリストから追加してください。</p>`);
+
+  const cleanBtn = document.getElementById("clean-invalid-participants");
+  if (cleanBtn) cleanBtn.addEventListener("click", () => {
+    editingSetup = true;
+    state.participants = state.participants.filter(p => roster[p.id]);
+    renderParticipants();
+    updateRoundsSuggestion();
+    showToast("名簿に存在しない参加者を削除しました。「保存して全員に同期」を押すと確定します。");
+  });
 
   attachParticipantItemEvents();
   updateParticipantCount();
