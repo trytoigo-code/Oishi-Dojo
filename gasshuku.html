@@ -14,11 +14,18 @@
   ▼囲碁パート（スイス式）
     参加人数（〜14人程度を想定）から回戦数の目安を自動表示し、合宿設定時に
     西さんが回戦数を確定する（以降その合宿中は固定）。
-    第1回戦は「今回の合宿設定」で並べた参加者の順番のまま隣同士を組み、以降は
-    「同成績同士・再戦回避」で
-    自動組み合わせを生成する。ただし次回戦の組み合わせは、前回戦の全結果が
-    揃うまで生成されない。
-    不戦敗は基本なし（時間差で対局して結果を埋める運用）。
+    組み合わせは公式のスイス式（ダッチシステム）に準拠する：全員を成績（勝数）で
+    グループ分けし、各グループを「今回の合宿設定」で並べた順のまま上位半分・
+    下位半分に分けて、上位1位×下位1位、上位2位×下位2位…とクロスに組む
+    （1回戦は全員が同成績＝1グループなので、参加者全体を上位半分・下位半分に
+    分けて組むことになる）。グループの人数が奇数のときは、並び順で一番後ろの
+    1人を1段階成績の低いグループへ降格させて一緒に処理する（標準的な
+    フローティング）。クロスの相手が対戦済みの場合は、下位半分の中で相手を
+    前後にずらして再戦にならない組み合わせを探す（それでも見つからなければ
+    仕方なく再戦を許容する）。次回戦の組み合わせは、前回戦の全結果が揃うまで
+    生成されない。
+    不戦敗は基本なし（時間差で対局して結果を埋める運用）。全体人数が奇数の
+    ときは1人がbye（まだbyeを経験していない人を優先。勝敗に影響しない）。
     最終順位の決定は「勝数 → 直接対決 → Buchholz（対戦相手の勝数合計）→
     機械的な基準（登録順等）」の順でタイブレークする。
 
@@ -99,13 +106,17 @@
       （対戦相手の勝数合計）→今回の合宿設定で並べた参加者の順」で算出して表示する。
       1局も決着していないうちは順位列を「－」にする（まだ実力差が出ていないのに
       順位がついて見えるのを防ぐため）。表の下に、回戦タブ＋対局カードで結果を
-      入力するセクションがある。組み合わせにランダム要素はなく、常に「今回の合宿
-      設定」で並べた参加者の順を基準に決める：1回戦はその並び順のまま隣同士
-      （1位vs2位、3位vs4位…）を組み、2回戦目以降は同成績同士・対戦済み回避
-      （避けられない場合は再戦を許容）を、その並び順の中で適用する。次の回戦は
-      前の回戦の全結果が揃うまで生成しない。生成済みの回戦のうち、最新以外は
-      結果の変更ができない（過去回戦の修正は今後の課題）。奇数人数のときは
-      1人がbye（勝敗に影響しない・不戦敗にはしない）。
+      入力するセクションがある。組み合わせは公式のスイス式（ダッチシステム）に
+      準拠：成績（勝数）でグループ分けし、各グループを「今回の合宿設定」の並び順
+      のまま上位半分・下位半分に分けて、上位1位×下位1位…とクロスに組む（1回戦は
+      全員同成績なので、参加者全体を上位半分・下位半分に分けて組む）。グループの
+      人数が奇数のときは、並び順で一番後ろの1人を1段階成績の低いグループへ降格
+      させて一緒に処理する。クロスの相手が対戦済みの場合は、下位半分の中で相手を
+      前後にずらして再戦にならない組み合わせを探す（それでも見つからなければ
+      仕方なく再戦を許容する）。次の回戦は前の回戦の全結果が揃うまで生成しない。
+      生成済みの回戦のうち、最新以外は結果の変更ができない（過去回戦の修正は
+      今後の課題）。全体人数が奇数のときは1人がbye（まだbyeを経験していない人を
+      優先。勝敗に影響しない・不戦敗にはしない）。
   - 麻雀・総合・過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
   - 設定タブ（管理者の仕事）：重み設定（囲碁・麻雀それぞれの重み。デフォルト
     囲碁1.0・麻雀1.0）、シーズン管理（西さんが手動で区切る。「今のシーズンを
@@ -190,7 +201,7 @@
   .matrix-wrap th, .matrix-wrap td { border: 1px solid #ddd8cc; padding: 6px 5px; text-align: center; white-space: nowrap; }
   .matrix-wrap th { background: #f1f0ea; color: #2c3e50; font-size: 0.72rem; }
   .igo-cell-win { color: #2e7d5e; font-weight: bold; }
-  .igo-cell-loss { color: #c0392b; font-weight: bold; }
+  .igo-cell-loss { color: #222; font-weight: bold; }
   .igo-cell-pending { color: #999; font-size: 0.76rem; }
   .igo-cell-empty { color: #ccc; }
 
@@ -933,67 +944,86 @@ function priorByeIds(rounds) {
 }
 
 // 1回戦分の組み合わせを生成する。
-// 2回戦目以降は「同成績同士」を基本に、対戦済みの相手を避けて組む（避けられない場合は再戦を許容）。
-// 奇数人数のときは1人がbye（その回戦は対局なし・勝敗に影響しない）。不戦敗の自動判定はしない。
-// 1回戦は「今回の合宿設定」で並べた順番のまま、1位vs2位・3位vs4位…と隣同士を組む。
-// 2回戦目以降は同成績同士・対戦済み回避で組む（避けられない場合は再戦を許容）。
-// 奇数人数のときは1人がbye（その回戦は対局なし・勝敗に影響しない）。不戦敗の自動判定はしない。
+// 公式のスイス式ペアリング（ダッチシステムに準拠）。
+// 1. 全員を成績（勝数）でグループ分けし、成績の高いグループから順に処理する
+// 2. 各グループを「今回の合宿設定」の並び順のまま上位半分・下位半分に分け、
+//    上位1位×下位1位、上位2位×下位2位…とクロスで組む
+// 3. グループの人数が奇数のときは、一番並び順が後ろの1人を次の（1段階成績が低い）
+//    グループへ降格させ、そのグループの先頭に加えて一緒に処理する
+// 4. クロスの組み合わせが対戦済みだった場合は、下位半分の中で相手を前後に
+//    ずらしながら再戦にならない組み合わせを探す（標準的な入れ替え手順）
+// 5. 全体の人数が奇数のときは、最初に1人だけbye（不戦敗にはしない）にしてから
+//    残り偶数人数で上記の処理を行う
 function generatePairing(igoIds, rounds) {
-  if (rounds.length === 0) return generateFirstRoundPairing(igoIds);
-  return generateSubsequentRoundPairing(igoIds, rounds);
-}
-
-function generateFirstRoundPairing(igoIds) {
-  let pool = [...igoIds];
-  let byeId = null;
-  if (pool.length % 2 === 1) {
-    byeId = pool[pool.length - 1];
-    pool = pool.slice(0, -1);
-  }
-  const matches = [];
-  for (let i = 0; i < pool.length; i += 2) {
-    matches.push({ a: pool[i], b: pool[i + 1], winner: null });
-  }
-  if (byeId) matches.push({ a: byeId, b: null, winner: "bye" });
-  return matches;
-}
-
-function generateSubsequentRoundPairing(igoIds, rounds) {
   const { wins } = igoScores(rounds);
   const played = playedPairSet(rounds);
   const byes = priorByeIds(rounds);
 
   let pool = [...igoIds];
-  pool.sort((a, b) => (wins[b]||0) - (wins[a]||0)); // 安定ソートなので同成績内は表の並び順を維持
-
   let byeId = null;
   if (pool.length % 2 === 1) {
-    for (let i = pool.length - 1; i >= 0; i--) {
-      if (!byes.has(pool[i])) { byeId = pool[i]; break; }
-    }
-    if (!byeId) byeId = pool[pool.length - 1];
+    // 成績の低い順に見て、まだbyeを経験していない人を優先してbyeにする
+    const byOrder = [...pool].sort((a, b) => (wins[a]||0) - (wins[b]||0));
+    for (const id of byOrder) { if (!byes.has(id)) { byeId = id; break; } }
+    if (!byeId) byeId = byOrder[0];
     pool = pool.filter(id => id !== byeId);
   }
 
-  const matches = [];
-  const used = new Set();
-  for (let i = 0; i < pool.length; i++) {
-    const a = pool[i];
-    if (used.has(a)) continue;
-    used.add(a);
-    let opp = null;
-    for (let j = i + 1; j < pool.length; j++) {
-      if (used.has(pool[j])) continue;
-      if (!played.has(pairKey(a, pool[j]))) { opp = pool[j]; break; }
+  const scoreGroups = {};
+  pool.forEach(id => {
+    const w = wins[id] || 0;
+    (scoreGroups[w] = scoreGroups[w] || []).push(id); // グループ内は表の並び順のまま
+  });
+  const scores = Object.keys(scoreGroups).map(Number).sort((a, b) => b - a);
+
+  let matches = [];
+  let floater = null; // 直前のグループから降格してきた1人
+  scores.forEach(score => {
+    let group = floater ? [floater, ...scoreGroups[score]] : [...scoreGroups[score]];
+    floater = null;
+    if (group.length % 2 === 1) {
+      floater = group[group.length - 1]; // 並び順で一番後ろの人を次のグループへ降格
+      group = group.slice(0, -1);
     }
-    if (!opp) { // 再戦回避できない場合は仕方なく一番近い未使用の相手にする
-      for (let j = i + 1; j < pool.length; j++) {
-        if (!used.has(pool[j])) { opp = pool[j]; break; }
+    matches = matches.concat(crossPairGroup(group, played));
+  });
+  // pool全体は偶数なので、最後にfloaterが残ることはない
+
+  if (byeId) matches.push({ a: byeId, b: null, winner: "bye" });
+  return matches;
+}
+
+// 偶数人数のグループを上位半分・下位半分に分け、上位i番目×下位i番目でクロスに組む。
+// 標準位置が対戦済みの場合は、下位半分の中で近い位置から順に相手をずらして再戦を避ける
+// （それでも見つからなければ、仕方なく標準位置の相手のまま組む）。
+function crossPairGroup(group, played) {
+  const half = group.length / 2;
+  const upper = group.slice(0, half);
+  const lower = group.slice(half);
+  const usedLower = new Set();
+  const matches = [];
+  for (let i = 0; i < upper.length; i++) {
+    const a = upper[i];
+    const order = [i];
+    for (let d = 1; d < lower.length; d++) {
+      if (i + d < lower.length) order.push(i + d);
+      if (i - d >= 0) order.push(i - d);
+    }
+    let opp = null;
+    for (const idx of order) {
+      const b = lower[idx];
+      if (usedLower.has(b)) continue;
+      if (!played.has(pairKey(a, b))) { opp = b; break; }
+    }
+    if (!opp) { // 再戦回避できない場合は仕方なく候補の中から一番近い相手にする
+      for (const idx of order) {
+        const b = lower[idx];
+        if (!usedLower.has(b)) { opp = b; break; }
       }
     }
-    if (opp) { used.add(opp); matches.push({ a, b: opp, winner: null }); }
+    usedLower.add(opp);
+    matches.push({ a, b: opp, winner: null });
   }
-  if (byeId) matches.push({ a: byeId, b: null, winner: "bye" });
   return matches;
 }
 
