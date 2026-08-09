@@ -117,7 +117,18 @@
       生成済みの回戦のうち、最新以外は結果の変更ができない（過去回戦の修正は
       今後の課題）。全体人数が奇数のときは1人がbye（まだbyeを経験していない人を
       優先。勝敗に影響しない・不戦敗にはしない）。
-  - 麻雀・総合・過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
+  - 麻雀（回ごとの自由対局記録、実装済み）
+      対象は「今回の合宿設定」で麻雀ON・かつ名簿に存在する参加者。半チャンのたびに
+      その中から卓の4人を自由に選んで記録する（入れ替わり・抜け番に対応。既存の
+      点棒＝mahjong.htmlと同じ、2〜4位を入力すると1位が自動計算される入力方式）。
+      記録は players[]（1位〜4位の順）・points[]・chips[] を持つ配列として蓄積し、
+      日付を持たない（合宿1回＝1つの記録の集合）。今回の合宿の麻雀順位は、
+      対局pt＋チップ換算pt（重み設定内のチップレートで換算）の総合ポイント順で
+      算出し、各対局の1〜4位バッジ・対局回数もあわせて表示する。対局履歴は
+      新しい順に一覧表示し、削除（確認ダイアログあり、Undo機能は今後の課題）に
+      対応。他の参加者の更新によるリアルタイム同期で、入力中のフォームが消えない
+      よう編集中フラグ（mjRankInputDirty）でガードしている。
+  - 総合・過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
   - 設定タブ（管理者の仕事）：重み設定（囲碁・麻雀それぞれの重み。デフォルト
     囲碁1.0・麻雀1.0）、シーズン管理（西さんが手動で区切る。「今のシーズンを
     終えて次を始める」でその時点の重みをFirebaseにアーカイブしてシーズン番号を
@@ -130,7 +141,8 @@
 
 【今後の改良候補】
   - 過去回戦の結果修正（現状は最新回戦のみ編集可、過去分は結果リセットしないと直せない）
-  - 麻雀パート：回ごとの記録入力・履歴表示の実装
+  - 麻雀の対局記録のUndo機能（削除の取り消し。他アプリ＝点棒/星取と同じ10秒Undoを想定）
+  - 麻雀の対局履歴の修正機能（現状は削除のみ、値の修正はできない）
   - 総合パート：配点表に基づくポイント計算UIの実装（重み設定自体は実装済み）
   - 過去の合宿タブ：アーカイブ一覧・詳細展開・全期間通算成績の実装
     （現状「新しい合宿にする」で今回の合宿をアーカイブする導線がまだ無く、
@@ -194,6 +206,61 @@
     font-weight: bold; cursor: pointer; letter-spacing: 1px; margin-top: 4px;
   }
   .btn:active { opacity: 0.85; }
+
+  /* 麻雀：結果入力（順位ごとの行） */
+  .mj-rank-input-row {
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid #ddd8cc;
+    border-radius: 8px; padding: 10px 6px; margin-bottom: 8px;
+  }
+  .mj-rank-input-row.top-auto-row { background: #f4f9f4; border-color: #a3d1a3; }
+  .mj-ri-label { width: 44px; font-weight: bold; font-size: 0.85rem; flex-shrink: 0; text-align: center; }
+  .mj-ri-select { flex: 1; padding: 8px 2px; font-size: 0.82rem; min-width: 0; }
+  .mj-ri-val-wrap { display: flex; flex-direction: column; align-items: flex-end; width: 92px; flex-shrink: 0; }
+  .mj-ri-val-title { font-size: 0.6rem; color: #999; margin-bottom: 2px; padding-right: 4px; }
+  .mj-ri-input-box { display: flex; width: 100%; gap: 3px; align-items: center; }
+  .mj-ri-pt-input, .mj-ri-chip-input { flex: 1; width: 100%; padding: 6px 4px; text-align: right; font-size: 0.95rem; font-weight: bold; min-width: 0; }
+  .mj-ri-pt-input:read-only, .mj-ri-chip-input:read-only { background: #eaf2ea; color: #27ae60; border-color: #c2e0c2; }
+  .mj-sign-toggle-btn {
+    width: 24px; height: 28px; background: #f0ede4; color: #555;
+    border: 1px solid #d0cbd4; border-radius: 4px; font-size: 0.65rem;
+    font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+  .mj-sign-toggle-btn.hidden { visibility: hidden; width: 0; padding: 0; border: none; margin: 0; }
+
+  /* 麻雀：順位表・履歴 */
+  .mj-rank-row {
+    background: #fdfdfb; border: 1px solid #e0dbcd;
+    padding: 10px 12px; border-radius: 8px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .mj-rank-num { width: 30px; font-size: 1.1rem; text-align: center; flex-shrink: 0; }
+  .mj-rank-info { flex: 1; min-width: 0; }
+  .mj-rank-name { font-weight: bold; font-size: 0.9rem; }
+  .mj-rank-sub { color: #888; font-size: 0.74rem; margin-top: 3px; }
+  .mj-rank-score { text-align: right; flex-shrink: 0; }
+  .mj-rank-score-val { font-size: 1.05rem; font-weight: bold; }
+  .mj-pt-pos { color: #27ae60; } .mj-pt-neg { color: #e74c3c; } .mj-pt-zero { color: #888; }
+  .mj-hist-item {
+    background: #fdfdfb; border: 1px solid #e0dbcd;
+    padding: 8px 6px; border-radius: 8px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .mj-hist-grid {
+    flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; text-align: center; min-width: 0;
+  }
+  .mj-hist-player-box {
+    background: #fff; border: 1px solid #f2eee2; border-radius: 5px;
+    padding: 4px 1px; display: flex; flex-direction: column; gap: 1px; min-width: 0;
+  }
+  .mj-hist-name-cell { font-weight: bold; font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #444; }
+  .mj-hist-pt-cell { font-weight: bold; font-size: 0.82rem; }
+  .mj-hist-chip-cell { font-size: 0.65rem; font-weight: bold; margin-top: 1px; color: #666; }
+  .mj-hist-del-btn {
+    background: #e74c3c; color: #fff; border: none;
+    padding: 6px 10px; border-radius: 4px; font-size: 0.76rem; cursor: pointer; flex-shrink: 0;
+  }
 
   /* 囲碁：対局者×回戦のマス目表 */
   .matrix-wrap { overflow-x: auto; margin: 8px 0 4px; }
@@ -343,13 +410,7 @@
     <!-- 🀄麻雀パート（回ごとの自由対局記録） -->
     <div class="panel" id="panel-mahjong">
       <h3>麻雀（回ごとの記録）</h3>
-      <p class="note">対局入力・履歴表示は次のステップで実装します。</p>
-      <div class="placeholder">
-        ここに以下を実装予定：<br>
-        ・半チャンごとに卓の4人を選んで結果入力（点棒と同じ入力方式）<br>
-        ・入れ替わり・抜け番に対応した対局履歴<br>
-        ・今回の合宿の麻雀順位（総合ポイント順）
-      </div>
+      <div id="mahjong-content"></div>
     </div>
 
     <!-- 🏅総合 -->
@@ -430,7 +491,12 @@
           <span style="font-size:0.86rem;font-weight:bold;color:#444;width:70px;flex-shrink:0">🀄麻雀</span>
           <input id="weight-mahjong" type="number" step="0.1" min="0" style="text-align:center">
         </div>
-        <button class="btn" id="save-weights" style="background:#b89752">重みを保存して同期</button>
+        <p class="note">麻雀のチップ1枚を何ポイントとして換算するか（点棒と同じ考え方。麻雀パートの合宿内順位の計算に使います）。</p>
+        <div class="fg" style="display:flex;align-items:center;gap:8px">
+          <span style="font-size:0.86rem;font-weight:bold;color:#444;width:70px;flex-shrink:0">🪙レート</span>
+          <input id="mj-chip-rate" type="number" step="any" style="text-align:center">
+        </div>
+        <button class="btn" id="save-weights" style="background:#b89752">重み・レートを保存して同期</button>
 
         <h3 style="margin-top:24px">シーズン管理</h3>
         <p class="note">西さんが手動で区切ります（igo.html/mahjong.htmlと同じ運用）。シーズンを終えると、その時点の重みの値ごとアーカイブされ、次のシーズンが始まります（重みの値はそのまま引き継がれるので、必要ならそこで調整してください）。</p>
@@ -439,7 +505,7 @@
         <div id="past-seasons" style="margin-top:16px"></div>
 
         <h3 style="margin-top:24px">結果のリセット</h3>
-        <p class="note">今回の合宿の対局結果だけを消去します。参加者・回戦数の設定はそのまま残ります。入力ミスのやり直しにお使いください。</p>
+        <p class="note">今回の合宿の対局結果（囲碁・麻雀とも）だけを消去します。参加者・回戦数の設定はそのまま残ります。入力ミスのやり直しにお使いください。</p>
         <button class="btn" id="reset-results-btn" style="background:#e67e22">結果だけリセット</button>
 
         <h3 style="margin-top:24px">完全リセット</h3>
@@ -479,7 +545,9 @@ let roster = {};   // { id: { name, rank } }
 // winnerは "a" | "b" | "bye" | null（未定）。
 // 配列の長さ＝これまでに生成済みの回戦数。最後の要素だけが編集可能（それより前は確定として扱う）。
 // state.weights: 総合ポイント計算用の重み。state.season: 西さんが手動で区切るシーズン番号。
-let state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1 };
+// state.mahjongResults: [ { players:[id,id,id,id], points:[p1,p2,p3,p4], chips:[c1,c2,c3,c4] }, ... ]
+// players[i]が1位〜4位の順（rank順）に対応する。state.chipRate: チップ1枚あたりの換算ポイント。
+let state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
 let rosterRef = null, stateRef = null, seasonsRef = null;
 let editingRoster = false, editingSetup = false, editingWeights = false;
 let rosterLoaded = false, stateLoaded = false;
@@ -508,7 +576,9 @@ if (isConfigured) {
           igo:     (data && data.weights && typeof data.weights.igo === "number") ? data.weights.igo : 1,
           mahjong: (data && data.weights && typeof data.weights.mahjong === "number") ? data.weights.mahjong : 1
         },
-        season: (data && typeof data.season === "number") ? data.season : 1
+        season: (data && typeof data.season === "number") ? data.season : 1,
+        mahjongResults: (data && Array.isArray(data.mahjongResults)) ? data.mahjongResults : [],
+        chipRate: (data && typeof data.chipRate === "number") ? data.chipRate : 1
       };
       stateLoaded = true;
       onDataReady();
@@ -533,6 +603,7 @@ function onDataReady() {
   if (!editingWeights) fillWeightInputs();
   renderSeasonInfo();
   renderIgoTab();
+  renderMahjongTab();
   setSyncStatus(true);
 }
 
@@ -574,6 +645,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.classList.add("active");
     document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
     if (btn.dataset.tab === "igo") renderIgoTab();
+    if (btn.dataset.tab === "mahjong") renderMahjongTab();
   });
 });
 
@@ -1211,28 +1283,33 @@ function igoMatrixTableHTML(list, rounds, roundCount) {
 //  重み設定
 // ============================================================
 function fillWeightInputs() {
-  const igoEl = document.getElementById("weight-igo");
-  const mjEl  = document.getElementById("weight-mahjong");
-  if (!igoEl || !mjEl) return;
-  igoEl.value = state.weights.igo;
-  mjEl.value  = state.weights.mahjong;
+  const igoEl  = document.getElementById("weight-igo");
+  const mjEl   = document.getElementById("weight-mahjong");
+  const rateEl = document.getElementById("mj-chip-rate");
+  if (!igoEl || !mjEl || !rateEl) return;
+  igoEl.value  = state.weights.igo;
+  mjEl.value   = state.weights.mahjong;
+  rateEl.value = state.chipRate;
 }
-["weight-igo", "weight-mahjong"].forEach(id => {
+["weight-igo", "weight-mahjong", "mj-chip-rate"].forEach(id => {
   const el = document.getElementById(id);
   if (!el) return;
   el.addEventListener("focus", () => editingWeights = true);
   el.addEventListener("blur",  () => editingWeights = false);
 });
 document.getElementById("save-weights").addEventListener("click", () => {
-  const igoW = parseFloat(document.getElementById("weight-igo").value);
-  const mjW  = parseFloat(document.getElementById("weight-mahjong").value);
+  const igoW  = parseFloat(document.getElementById("weight-igo").value);
+  const mjW   = parseFloat(document.getElementById("weight-mahjong").value);
+  const rateW = parseFloat(document.getElementById("mj-chip-rate").value);
   state.weights = {
     igo:     isNaN(igoW) ? 1 : igoW,
     mahjong: isNaN(mjW) ? 1 : mjW
   };
+  state.chipRate = isNaN(rateW) ? 1 : rateW;
   editingWeights = false;
   pushState();
-  showToast("重みを保存し、全員に同期しました！");
+  renderMahjongTab();
+  showToast("重み・レートを保存し、全員に同期しました！");
 });
 
 // ============================================================
@@ -1253,24 +1330,25 @@ function renderSeasonInfo() {
       ${seasons.map(s => `
         <div style="background:#f1f0ea;border:1px solid #e0dbcd;border-radius:6px;padding:8px 12px;margin-bottom:8px;font-size:0.85rem">
           <strong>シーズン ${s.season}</strong>（終了：${escapeHtml(s.endDate || "")}）<br>
-          <span style="color:#666">重み：囲碁${s.weights?.igo ?? 1} ／ 麻雀${s.weights?.mahjong ?? 1}</span>
+          <span style="color:#666">重み：囲碁${s.weights?.igo ?? 1} ／ 麻雀${s.weights?.mahjong ?? 1} ／ チップレート${s.chipRate ?? 1}</span>
         </div>`).join("")}`;
   });
 }
 
 document.getElementById("season-end-btn").addEventListener("click", () => {
-  if (!confirm(`シーズン${state.season}を終えて、次のシーズンを始めます。\n現在の重み（囲碁${state.weights.igo}／麻雀${state.weights.mahjong}）がこのシーズンの記録として保存されます。\nよろしいですか？`)) return;
+  if (!confirm(`シーズン${state.season}を終えて、次のシーズンを始めます。\n現在の重み（囲碁${state.weights.igo}／麻雀${state.weights.mahjong}）とチップレート（${state.chipRate}）がこのシーズンの記録として保存されます。\nよろしいですか？`)) return;
   if (seasonsRef) {
     const now = new Date();
     const endDate = `${now.getFullYear()}/${now.getMonth()+1}/${now.getDate()}`;
     seasonsRef.child(String(state.season)).set({
       season: state.season,
       weights: { ...state.weights },
+      chipRate: state.chipRate,
       endDate
     });
   }
   state.season = (state.season || 1) + 1;
-  // 重みの値はそのまま引き継ぐ（次のシーズンで調整したければ重み設定から変更する）
+  // 重み・チップレートの値はそのまま引き継ぐ（次のシーズンで調整したければ設定から変更する）
   pushState();
   renderSeasonInfo();
   showToast(`シーズン${state.season - 1}を終え、シーズン${state.season}を開始しました。`);
@@ -1280,22 +1358,27 @@ document.getElementById("season-end-btn").addEventListener("click", () => {
 //  結果のリセット／完全リセット
 // ============================================================
 document.getElementById("reset-results-btn").addEventListener("click", () => {
-  if (!confirm("今回の合宿の対局結果をすべて消去します。参加者・回戦数の設定はそのまま残ります。よろしいですか？")) return;
+  if (!confirm("今回の合宿の対局結果（囲碁・麻雀とも）をすべて消去します。参加者・回戦数の設定はそのまま残ります。よろしいですか？")) return;
   state.igoResults = [];
+  state.mahjongResults = [];
   igoActiveRoundIdx = 0;
+  mjRankInputDirty = false;
   pushState();
   renderIgoTab();
+  renderMahjongTab();
   showToast("結果をリセットしました");
 });
 
 document.getElementById("full-reset-btn").addEventListener("click", () => {
   if (!confirm("今回の合宿設定・対局結果・シーズン番号・重みをすべて消去して最初の状態に戻します（対局者名簿は保持されます）。\nこの操作は取り消せません。本当によいですか？")) return;
-  state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1 };
+  state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
   igoActiveRoundIdx = 0;
+  mjRankInputDirty = false;
   pushState();
   fillSetupInputs();
   fillWeightInputs();
   renderIgoTab();
+  renderMahjongTab();
   renderSeasonInfo();
   showToast("完全リセットしました。");
 });
@@ -1320,6 +1403,236 @@ document.getElementById("export-btn").addEventListener("click", () => {
     showToast("エクスポートしました");
   });
 });
+
+// ============================================================
+//  麻雀（回ごとの自由対局記録）
+// ============================================================
+// 対象は「今回の合宿設定」で麻雀ON・かつ現在も名簿に存在する参加者。
+// 半チャンごとに、その中から卓の4人を選んで記録する（入れ替わり・抜け番に対応）。
+function mahjongParticipantIds() {
+  return state.participants.filter(p => p.mahjong && roster[p.id]).map(p => p.id);
+}
+
+const MJ_RANK_LABELS = ["👑 1位", "🥈 2位", "🥉 3位", "4位"];
+let mjRankInputDirty = false;
+
+function renderMahjongTab() {
+  const el = document.getElementById("mahjong-content");
+  if (!el) return;
+  const mjIds = mahjongParticipantIds();
+
+  if (mjIds.length < 4) {
+    el.innerHTML = `<p class="note" style="margin:0">⚙️設定タブで、今回の合宿の麻雀参加者を4人以上選んでください。</p>`;
+    el.dataset.built = "";
+    return;
+  }
+
+  // 骨組みは初回だけ作る。以降は中身（順位・履歴）だけ差し替え、入力中のフォームは
+  // mjRankInputDirtyがtrueの間は触らない（他の参加者の更新で入力中の内容が消えるのを防ぐ）。
+  if (!el.dataset.built) {
+    el.innerHTML = `
+      <p class="note" style="margin-top:0">半チャンのたびに、卓に座った4人を選んで結果を記録します。参加者の中から毎回自由に選べます（入れ替わり・抜け番OK）。</p>
+      <div id="mj-rank-inputs"></div>
+      <button class="btn" id="mj-add-match" style="background:#2c3e50">登録する</button>
+      <h3 style="margin-top:24px">今回の合宿の麻雀順位</h3>
+      <div id="mj-standings"></div>
+      <h3 style="margin-top:24px">対局履歴</h3>
+      <div id="mj-history"></div>`;
+    el.dataset.built = "1";
+    document.getElementById("mj-add-match").addEventListener("click", () => onMjAddMatch(mahjongParticipantIds()));
+  }
+
+  if (!mjRankInputDirty) buildMjRankInputs(mjIds);
+  document.getElementById("mj-standings").innerHTML = mjStandingsHTML(mjIds);
+  const histEl = document.getElementById("mj-history");
+  histEl.innerHTML = mjHistoryHTML();
+  histEl.querySelectorAll(".mj-hist-del-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const idx = Number(btn.dataset.idx);
+      if (!confirm("この対局記録を削除しますか？")) return;
+      state.mahjongResults.splice(idx, 1);
+      pushState();
+      renderMahjongTab();
+      showToast("削除しました");
+    });
+  });
+}
+
+function buildMjRankInputs(mjIds) {
+  mjRankInputDirty = false;
+  const container = document.getElementById("mj-rank-inputs");
+  if (!container) return;
+  const options = mjIds.map(id => `<option value="${id}">${escapeHtml(roster[id]?.name || "")}</option>`).join("");
+  container.innerHTML = MJ_RANK_LABELS.map((label, r) => {
+    const isTop = r === 0;
+    return `
+      <div class="mj-rank-input-row ${isTop ? "top-auto-row" : ""}">
+        <span class="mj-ri-label">${label}</span>
+        <select class="mj-ri-select" id="mj-ri-player-${r}">${options}</select>
+        <div class="mj-ri-val-wrap">
+          <span class="mj-ri-val-title">ポイント</span>
+          <div class="mj-ri-input-box">
+            <input type="text" inputmode="numeric" pattern="[0-9-.]*" class="mj-ri-pt-input" id="mj-ri-pt-${r}"
+              placeholder="0" ${isTop ? "readonly" : `oninput="mjRankInputDirty = true; recalcMjTopScore()"`}>
+            <button class="mj-sign-toggle-btn ${isTop ? "hidden" : ""}" onclick="toggleMjSign('mj-ri-pt-${r}')">±</button>
+          </div>
+        </div>
+        <div class="mj-ri-val-wrap">
+          <span class="mj-ri-val-title">チップ</span>
+          <div class="mj-ri-input-box">
+            <input type="text" inputmode="numeric" pattern="[0-9-]*" class="mj-ri-chip-input" id="mj-ri-chip-${r}"
+              placeholder="0" ${isTop ? "readonly" : `oninput="mjRankInputDirty = true; recalcMjTopScore()"`}>
+            <button class="mj-sign-toggle-btn ${isTop ? "hidden" : ""}" onclick="toggleMjSign('mj-ri-chip-${r}')">±</button>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+  // デフォルトで異なる4人が選ばれるよう、選択肢の順にずらして初期値を入れる
+  [0,1,2,3].forEach(r => {
+    const sel = document.getElementById(`mj-ri-player-${r}`);
+    if (sel && mjIds[r]) sel.value = mjIds[r];
+    if (sel) sel.addEventListener("change", () => mjRankInputDirty = true);
+  });
+  recalcMjTopScore();
+}
+
+function toggleMjSign(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const v = el.value.trim();
+  if (v === "" || v === "0") return;
+  el.value = v.startsWith("-") ? v.substring(1) : "-" + v;
+  mjRankInputDirty = true;
+  recalcMjTopScore();
+}
+
+function mjParseVal(str) {
+  const t = (str || "").trim();
+  if (t === "" || t === "-") return 0;
+  const n = parseFloat(t);
+  return isNaN(n) ? 0 : n;
+}
+
+function recalcMjTopScore() {
+  const pt1 = document.getElementById("mj-ri-pt-1");
+  if (!pt1) return;
+  const p2 = mjParseVal(document.getElementById("mj-ri-pt-1").value);
+  const p3 = mjParseVal(document.getElementById("mj-ri-pt-2").value);
+  const p4 = mjParseVal(document.getElementById("mj-ri-pt-3").value);
+  const c2 = mjParseVal(document.getElementById("mj-ri-chip-1").value);
+  const c3 = mjParseVal(document.getElementById("mj-ri-chip-2").value);
+  const c4 = mjParseVal(document.getElementById("mj-ri-chip-3").value);
+  const topPt = Number((-(p2 + p3 + p4)).toFixed(2));
+  const topCp = Number((-(c2 + c3 + c4)).toFixed(2));
+  document.getElementById("mj-ri-pt-0").value = topPt === 0 ? "" : topPt;
+  document.getElementById("mj-ri-chip-0").value = topCp === 0 ? "" : topCp;
+}
+
+function onMjAddMatch(mjIds) {
+  const playerIds = [0,1,2,3].map(r => document.getElementById(`mj-ri-player-${r}`).value);
+  if (new Set(playerIds).size !== 4) { showToast("同じ人が複数の順位に選ばれています"); return; }
+
+  const ptsRaw = [1,2,3].map(r => document.getElementById(`mj-ri-pt-${r}`).value.trim());
+  const cpsRaw = [1,2,3].map(r => document.getElementById(`mj-ri-chip-${r}`).value.trim());
+  if (ptsRaw.some(v => v === "-") || cpsRaw.some(v => v === "-")) {
+    showToast("ポイントまたはチップの入力が不完全です（マイナス符号のみの欄があります）"); return;
+  }
+
+  const points = [0,1,2,3].map(r => mjParseVal(document.getElementById(`mj-ri-pt-${r}`).value));
+  const chips  = [0,1,2,3].map(r => mjParseVal(document.getElementById(`mj-ri-chip-${r}`).value));
+
+  state.mahjongResults = [...state.mahjongResults, { players: playerIds, points, chips }];
+  pushState();
+  mjRankInputDirty = false;
+  showToast("結果を登録しました！");
+  renderMahjongTab();
+}
+
+// その半チャンの総合値（対局pt＋チップ換算pt）を返す（順位判定・順位表で共通利用）
+function mjMatchOverall(m) {
+  return m.points.map((pt, i) => pt + (m.chips ? (m.chips[i] || 0) : 0) * state.chipRate);
+}
+
+function mjFmtPt(pt) {
+  if (pt > 0) return `+${pt}`;
+  if (pt < 0) return `${pt}`;
+  return "±0";
+}
+function mjPtClass(pt) { return pt > 0 ? "mj-pt-pos" : pt < 0 ? "mj-pt-neg" : "mj-pt-zero"; }
+
+// 今回の合宿の麻雀順位：総合ポイント（対局pt＋チップ換算pt）の合計順
+function mjStandingsHTML(mjIds) {
+  const totals = {}, chipTotals = {}, games = {}, rankCnt = {1:{},2:{},3:{},4:{}};
+  mjIds.forEach(id => { totals[id]=0; chipTotals[id]=0; games[id]=0; [1,2,3,4].forEach(r=>rankCnt[r][id]=0); });
+
+  state.mahjongResults.forEach(m => {
+    const overall = mjMatchOverall(m);
+    const order = overall.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v);
+    m.players.forEach((pid, i) => {
+      if (!(pid in totals)) { totals[pid]=0; chipTotals[pid]=0; games[pid]=0; [1,2,3,4].forEach(r=>rankCnt[r][pid]=rankCnt[r][pid]||0); }
+      totals[pid] += m.points[i] || 0;
+      chipTotals[pid] += (m.chips ? (m.chips[i]||0) : 0);
+      games[pid]++;
+    });
+    order.forEach((o, idx) => {
+      const pid = m.players[o.i];
+      rankCnt[idx+1][pid] = (rankCnt[idx+1][pid]||0) + 1;
+    });
+  });
+
+  const allIds = [...new Set([...mjIds, ...Object.keys(totals)])];
+  const data = allIds.map(id => {
+    const purePt = Number((totals[id]||0).toFixed(4));
+    const chips  = Number((chipTotals[id]||0).toFixed(4));
+    const overall = Number((purePt + chips * state.chipRate).toFixed(2));
+    return { id, name: roster[id]?.name || "", overall, purePt, chipPt: Number((chips*state.chipRate).toFixed(2)), games: games[id]||0,
+      c1: rankCnt[1][id]||0, c2: rankCnt[2][id]||0, c3: rankCnt[3][id]||0, c4: rankCnt[4][id]||0 };
+  });
+  data.sort((a,b) => b.overall - a.overall);
+
+  if (data.every(p => p.games === 0)) return `<p style="color:#999;font-size:0.88rem">まだ対局がありません。</p>`;
+
+  const medals = ["🥇","🥈","🥉"];
+  return data.map((p, i) => `
+    <div class="mj-rank-row">
+      <div class="mj-rank-num">${medals[i] || (i+1)}</div>
+      <div class="mj-rank-info">
+        <div class="mj-rank-name">${escapeHtml(p.name)}</div>
+        <div class="mj-rank-sub">${p.games}回 ／ 👑${p.c1} 🥈${p.c2} 🥉${p.c3} <span style="opacity:0.7">4位:${p.c4}</span></div>
+      </div>
+      <div class="mj-rank-score">
+        <div class="mj-rank-score-val ${mjPtClass(p.overall)}">${mjFmtPt(p.overall)}</div>
+        <div style="font-size:0.68rem;color:#999">対局${mjFmtPt(p.purePt)} ／ 🪙${mjFmtPt(p.chipPt)}</div>
+      </div>
+    </div>`).join("");
+}
+
+function mjHistoryHTML() {
+  if (state.mahjongResults.length === 0) {
+    return `<p style="color:#999;font-size:0.88rem">まだ対局がありません。</p>`;
+  }
+  return [...state.mahjongResults].map((m, idx) => idx).reverse().map(idx => {
+    const m = state.mahjongResults[idx];
+    const overall = mjMatchOverall(m);
+    const order = overall.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v);
+    const rankOf = {};
+    order.forEach((o, ri) => rankOf[o.i] = ri + 1);
+    const boxes = m.players.map((pid, i) => {
+      const rank = rankOf[i];
+      const badge = rank === 1 ? "👑" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "4位";
+      return `<div class="mj-hist-player-box">
+        <span>${badge}</span>
+        <span class="mj-hist-name-cell" title="${escapeHtml(roster[pid]?.name||"")}">${escapeHtml(roster[pid]?.name||"")}</span>
+        <span class="mj-hist-pt-cell ${mjPtClass(m.points[i])}">${mjFmtPt(m.points[i])}</span>
+        <span class="mj-hist-chip-cell ${mjPtClass(m.chips?m.chips[i]:0)}">${(m.chips&&m.chips[i]>0)?"+":""}${m.chips?m.chips[i]:0}</span>
+      </div>`;
+    }).join("");
+    return `<div class="mj-hist-item">
+      <div class="mj-hist-grid">${boxes}</div>
+      <button class="mj-hist-del-btn" data-idx="${idx}">削除</button>
+    </div>`;
+  }).join("");
+}
 </script>
 </body>
 </html>
