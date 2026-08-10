@@ -138,14 +138,25 @@
       「まだ結果がありません」と表示）。片方の種目だけ参加した人は、参加して
       いない方を「未参加」と表示し、0点扱いにはするが順位計算そのものからは
       除外しない（総合ポイントに単純加算されるだけなので不利益にはならない）。
-  - 過去の合宿タブは現時点では骨組みのみ（次のステップで実装）
+  - 過去の合宿（実装済み）
+      ⚙️設定タブの「新しい合宿にする」で、今回の合宿（開催日・参加者・囲碁結果・
+      麻雀結果・その時点の重み／チップレート／シーズン番号のスナップショット）を
+      📚過去の合宿タブにアーカイブしてから、開催日・対局結果だけを白紙に戻す
+      （参加者・回戦数・重み・チップレート・シーズンは次の合宿にそのまま引き継ぐ）。
+      📚過去の合宿タブは3層構造：①シーズンで絞り込み可能な通算成績（囲碁／麻雀／
+      総合をそれぞれ集計。進行中の合宿も対象シーズンなら含める）②合宿ごとの一覧
+      （直近6件＋もっと見る）③「結果を見る」で展開する合宿ごとの詳細（囲碁マス目表・
+      麻雀順位・総合順位を、今回の合宿の各タブと同じ形式で読み取り専用表示）。
+      アーカイブ済みの合宿は、アーカイブ時点の重み・チップレートで計算されるため、
+      後から重みを変更しても過去の合宿の総合順位は変わらない。
   - 設定タブ（管理者の仕事）：重み設定（囲碁・麻雀それぞれの重み。デフォルト
     囲碁1.0・麻雀1.0）、シーズン管理（西さんが手動で区切る。「今のシーズンを
     終えて次を始める」でその時点の重みをFirebaseにアーカイブしてシーズン番号を
     進める。重みの値自体は次シーズンにそのまま引き継がれる）、結果だけリセット
     （今回の合宿の囲碁結果のみ消去、参加者・回戦数は保持）、完全リセット（今回の
-    合宿設定・結果・シーズン番号・重みをすべて初期化。対局者名簿は保持）、
-    データエクスポート（gasshukuノード全体をJSONダウンロード）を実装済み。
+    合宿設定・結果・シーズン番号・重み・📚過去の合宿アーカイブ・過去のシーズン
+    記録をすべて初期化。対局者名簿は保持）、データエクスポート（gasshukuノード
+    全体をJSONダウンロード）を実装済み。
   - 合言葉認証・Firebase同期ステータス表示・トースト通知・管理者メニュー
     折りたたみなど、山あるき／大石道場共通のUI部品はこの段階で導入済み。
 
@@ -154,10 +165,34 @@
   - 麻雀の対局記録のUndo機能（削除の取り消し。他アプリ＝点棒/星取と同じ10秒Undoを想定）
   - 麻雀の対局履歴の修正機能（現状は削除のみ、値の修正はできない）
   - 15位以下が出た場合の配点方針の検討
-  - 過去の合宿タブ：アーカイブ一覧・詳細展開・全期間通算成績の実装
-    （現状「新しい合宿にする」で今回の合宿をアーカイブする導線がまだ無く、
-    シーズン管理は重み・チップレートの記録のみに留まっている。合宿単位の
-    アーカイブを実装後、シーズン内・全期間の囲碁／麻雀／総合順位もあわせて実装する）
+  - アーカイブ済みの合宿記録の修正・削除（現状は一度アーカイブすると読み取り専用）
+  - 【重要】囲碁・麻雀どちらか片方しか参加しない人の総合順位の扱い
+    （現状は単純合計＝doesIgo/doesMjで0点扱いにするだけなので、両方参加した人が
+    構造的に有利になる。検討した案：A.今のまま単純合計／B.参加した種目数で
+    割って平均化（天井が揃うが「両方頑張った」貢献が薄まる）／C.総合ランキングは
+    両方参加した人限定にする／D.片方だけの人に、もう片方の順位を仮補完する。
+    まだ結論は出ていない）
+  - 回戦数のキャリーオーバーが参加人数の変化に追従しない（「新しい合宿にする」で
+    回戦数は前回の値のまま引き継がれ、次回参加人数が変わっても自動提案は
+    上書きされない。人数が大きく変わったときに気づきにくい）
+  - byeで休んだ人が「不戦敗は基本なし・時間差で対局する」の方針通り実際に
+    対局した場合、その結果をアプリ上に反映する手段がまだ無い
+  - 名簿から削除された対局者は、過去の合宿の記録でも名前が空欄になる
+    （アーカイブはIDで参加者を記録しているため。大石道場杯の名簿と同じ
+    構造的な弱点）
+  - 全期間の通算成績にポイント合計しか出ていない（対局・参加回数が見えないため、
+    1回だけ大勝ちした人と毎回堅実な人が区別しづらい）
+  - 過去の合宿の詳細表示は、囲碁はマス目表で全対局を振り返れるのに対し、
+    麻雀は順位表のみで対局履歴（一覧）までは展開していない
+  - 合言葉はアプリ側の入力チェックのみで、Firebase自体は誰でも読み書きできる
+    構造（他の山あるき／大石道場アプリ共通の弱点）
+  - 名簿に同姓同名がいる場合、画面上は名前でしか表示していないため区別できない
+    （IDは別々に管理されているが、表示上は見分けがつかない）
+  - 合宿の途中で重み・チップレートを変更すると、アーカイブ前は常に「今の設定」で
+    計算し直す仕様のため、既に登録済みの対局・結果の総合ポイント表示も遡って
+    変わってしまう（意図した動作だが、驚く人がいるかもしれない）
+  - 大人数（15人以上）での動作は未検証（回戦数の目安・クロスペアリングで
+    降格が偏らないかなど、14人を超えたあたりからの挙動は実地で試せていない）
   - 参加者が合宿途中で入れ替わった場合の「今回の合宿設定」再編集の扱い
     （現時点では上書き確認のみ。結果と紐づいた後の編集制限は未検討）
 ================================================================================
@@ -237,6 +272,14 @@
     flex-shrink: 0;
   }
   .mj-sign-toggle-btn.hidden { visibility: hidden; width: 0; padding: 0; border: none; margin: 0; }
+
+  /* 過去の合宿：一覧カード・見出し */
+  h4.section-head { border-left: 4px solid #b89752; padding-left: 8px; color: #2c3e50; margin: 20px 0 10px; font-size: 0.92rem; }
+  h4.section-head:first-child { margin-top: 0; }
+  .archive-card {
+    background: #f1f0ea; border: 1px solid #e0dbcd; border-radius: 6px;
+    padding: 10px 12px; margin-bottom: 8px; font-size: 0.85rem;
+  }
 
   /* 総合順位 */
   .sogo-row {
@@ -446,13 +489,7 @@
     <!-- 📚過去の合宿 -->
     <div class="panel" id="panel-archive">
       <h3>過去の合宿</h3>
-      <p class="note">アーカイブ一覧・詳細展開・全期間通算成績は次のステップで実装します。</p>
-      <div class="placeholder">
-        tournament.htmlの「過去の大会」タブと同じ3層構造を予定：<br>
-        ・一覧（直近6件＋もっと見る）<br>
-        ・合宿ごとの詳細（囲碁・麻雀それぞれの結果、読み取り専用）<br>
-        ・全期間の通算成績（囲碁／麻雀／総合をそれぞれ集計）
-      </div>
+      <div id="archive-content"></div>
     </div>
 
     <!-- ⚙️設定 -->
@@ -519,12 +556,16 @@
         <button class="btn" id="season-end-btn" style="background:#e67e22">今のシーズンを終えて次を始める</button>
         <div id="past-seasons" style="margin-top:16px"></div>
 
+        <h3 style="margin-top:24px">新しい合宿にする</h3>
+        <p class="note">今回の合宿を📚過去の合宿にアーカイブしてから、次の合宿に備えて白紙に戻します（開催日・対局結果はリセットされます。参加者・回戦数・重み・チップレート・シーズンは引き継がれます）。</p>
+        <button class="btn" id="new-camp-btn" style="background:#e74c3c">今回の合宿をアーカイブして新しく始める</button>
+
         <h3 style="margin-top:24px">結果のリセット</h3>
         <p class="note">今回の合宿の対局結果（囲碁・麻雀とも）だけを消去します。参加者・回戦数の設定はそのまま残ります。入力ミスのやり直しにお使いください。</p>
         <button class="btn" id="reset-results-btn" style="background:#e67e22">結果だけリセット</button>
 
         <h3 style="margin-top:24px">完全リセット</h3>
-        <p class="note">テスト中など、すべてをやり直したいときに使います。今回の合宿設定・対局結果・シーズン番号・重みをすべて消去して最初の状態に戻します（対局者名簿は保持されます）。</p>
+        <p class="note">テスト中など、すべてをやり直したいときに使います。今回の合宿設定・対局結果・シーズン番号・重み・📚過去の合宿アーカイブ・過去のシーズン記録をすべて消去して最初の状態に戻します（対局者名簿は保持されます）。</p>
         <button class="btn" id="full-reset-btn" style="background:#888">完全リセットする</button>
 
         <h3 style="margin-top:24px">データエクスポート</h3>
@@ -563,7 +604,7 @@ let roster = {};   // { id: { name, rank } }
 // state.mahjongResults: [ { players:[id,id,id,id], points:[p1,p2,p3,p4], chips:[c1,c2,c3,c4] }, ... ]
 // players[i]が1位〜4位の順（rank順）に対応する。state.chipRate: チップ1枚あたりの換算ポイント。
 let state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
-let rosterRef = null, stateRef = null, seasonsRef = null;
+let rosterRef = null, stateRef = null, seasonsRef = null, archiveRef = null;
 let editingRoster = false, editingSetup = false, editingWeights = false;
 let rosterLoaded = false, stateLoaded = false;
 
@@ -573,6 +614,7 @@ if (isConfigured) {
     rosterRef  = firebase.database().ref("gasshuku/roster");
     stateRef   = firebase.database().ref("gasshuku/state");
     seasonsRef = firebase.database().ref("gasshuku/seasons");
+    archiveRef = firebase.database().ref("gasshuku/archive");
 
     rosterRef.on("value", snap => {
       roster = snap.val() || {};
@@ -663,6 +705,7 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     if (btn.dataset.tab === "igo") renderIgoTab();
     if (btn.dataset.tab === "mahjong") renderMahjongTab();
     if (btn.dataset.tab === "sogo") renderSogoTab();
+    if (btn.dataset.tab === "archive") { archiveShowAll = false; renderArchiveTab(); }
   });
 });
 
@@ -1390,7 +1433,9 @@ document.getElementById("reset-results-btn").addEventListener("click", () => {
 });
 
 document.getElementById("full-reset-btn").addEventListener("click", () => {
-  if (!confirm("今回の合宿設定・対局結果・シーズン番号・重みをすべて消去して最初の状態に戻します（対局者名簿は保持されます）。\nこの操作は取り消せません。本当によいですか？")) return;
+  if (!confirm("今回の合宿設定・対局結果・シーズン番号・重み・📚過去の合宿アーカイブ・過去のシーズン記録をすべて消去して最初の状態に戻します（対局者名簿は保持されます）。\nこの操作は取り消せません。本当によいですか？")) return;
+  if (archiveRef) archiveRef.remove();
+  if (seasonsRef) seasonsRef.remove();
   state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
   igoActiveRoundIdx = 0;
   mjRankInputDirty = false;
@@ -1401,6 +1446,8 @@ document.getElementById("full-reset-btn").addEventListener("click", () => {
   renderMahjongTab();
   renderSogoTab();
   renderSeasonInfo();
+  archiveShowAll = false;
+  renderArchiveTab();
   showToast("完全リセットしました。");
 });
 
@@ -1572,8 +1619,8 @@ function onMjAddMatch(mjIds) {
 }
 
 // その半チャンの総合値（対局pt＋チップ換算pt）を返す（順位判定・順位表で共通利用）
-function mjMatchOverall(m) {
-  return m.points.map((pt, i) => pt + (m.chips ? (m.chips[i] || 0) : 0) * state.chipRate);
+function mjMatchOverall(m, chipRate) {
+  return m.points.map((pt, i) => pt + (m.chips ? (m.chips[i] || 0) : 0) * chipRate);
 }
 
 function mjFmtPt(pt) {
@@ -1583,13 +1630,14 @@ function mjFmtPt(pt) {
 }
 function mjPtClass(pt) { return pt > 0 ? "mj-pt-pos" : pt < 0 ? "mj-pt-neg" : "mj-pt-zero"; }
 
-// 今回の合宿の麻雀順位：総合ポイント（対局pt＋チップ換算pt）の合計順
-function computeMjStandings(mjIds) {
+// 麻雀順位：総合ポイント（対局pt＋チップ換算pt）の合計順。
+// results/chipRateを明示的に渡すことで、今回の合宿にもアーカイブ済みの合宿にも使う。
+function computeMjStandings(mjIds, results, chipRate) {
   const totals = {}, chipTotals = {}, games = {}, rankCnt = {1:{},2:{},3:{},4:{}};
   mjIds.forEach(id => { totals[id]=0; chipTotals[id]=0; games[id]=0; [1,2,3,4].forEach(r=>rankCnt[r][id]=0); });
 
-  state.mahjongResults.forEach(m => {
-    const overall = mjMatchOverall(m);
+  (results || []).forEach(m => {
+    const overall = mjMatchOverall(m, chipRate);
     const order = overall.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v);
     m.players.forEach((pid, i) => {
       if (!(pid in totals)) { totals[pid]=0; chipTotals[pid]=0; games[pid]=0; [1,2,3,4].forEach(r=>rankCnt[r][pid]=rankCnt[r][pid]||0); }
@@ -1607,18 +1655,17 @@ function computeMjStandings(mjIds) {
   const data = allIds.map(id => {
     const purePt = Number((totals[id]||0).toFixed(4));
     const chips  = Number((chipTotals[id]||0).toFixed(4));
-    const overall = Number((purePt + chips * state.chipRate).toFixed(2));
-    return { id, name: roster[id]?.name || "", overall, purePt, chipPt: Number((chips*state.chipRate).toFixed(2)), games: games[id]||0,
+    const overall = Number((purePt + chips * chipRate).toFixed(2));
+    return { id, name: roster[id]?.name || "", overall, purePt, chipPt: Number((chips*chipRate).toFixed(2)), games: games[id]||0,
       c1: rankCnt[1][id]||0, c2: rankCnt[2][id]||0, c3: rankCnt[3][id]||0, c4: rankCnt[4][id]||0 };
   });
   data.sort((a,b) => b.overall - a.overall);
   return data;
 }
 
-function mjStandingsHTML(mjIds) {
-  const data = computeMjStandings(mjIds);
-  if (data.every(p => p.games === 0)) return `<p style="color:#999;font-size:0.88rem">まだ対局がありません。</p>`;
-
+// 麻雀順位表のHTML（計算済みのdata配列を渡す。今回の合宿・アーカイブ表示の両方から使う）
+function mjStandingsListHTML(data) {
+  if (data.length === 0 || data.every(p => p.games === 0)) return `<p style="color:#999;font-size:0.88rem">まだ対局がありません。</p>`;
   const medals = ["🥇","🥈","🥉"];
   return data.map((p, i) => `
     <div class="mj-rank-row">
@@ -1634,13 +1681,20 @@ function mjStandingsHTML(mjIds) {
     </div>`).join("");
 }
 
-function mjHistoryHTML() {
-  if (state.mahjongResults.length === 0) {
+function mjStandingsHTML(mjIds) {
+  return mjStandingsListHTML(computeMjStandings(mjIds, state.mahjongResults, state.chipRate));
+}
+
+// 麻雀対局履歴のHTML（resultsを明示的に渡す。今回の合宿・アーカイブ表示の両方から使う）
+function mjHistoryListHTML(results, opts) {
+  const showDelete = opts && opts.showDelete;
+  const chipRate = (opts && typeof opts.chipRate === "number") ? opts.chipRate : state.chipRate;
+  if (!results || results.length === 0) {
     return `<p style="color:#999;font-size:0.88rem">まだ対局がありません。</p>`;
   }
-  return [...state.mahjongResults].map((m, idx) => idx).reverse().map(idx => {
-    const m = state.mahjongResults[idx];
-    const overall = mjMatchOverall(m);
+  return results.map((m, idx) => idx).reverse().map(idx => {
+    const m = results[idx];
+    const overall = mjMatchOverall(m, chipRate);
     const order = overall.map((v,i)=>({i,v})).sort((a,b)=>b.v-a.v);
     const rankOf = {};
     order.forEach((o, ri) => rankOf[o.i] = ri + 1);
@@ -1654,11 +1708,16 @@ function mjHistoryHTML() {
         <span class="mj-hist-chip-cell ${mjPtClass(m.chips?m.chips[i]:0)}">${(m.chips&&m.chips[i]>0)?"+":""}${m.chips?m.chips[i]:0}</span>
       </div>`;
     }).join("");
+    const delBtn = showDelete ? `<button class="mj-hist-del-btn" data-idx="${idx}">削除</button>` : "";
     return `<div class="mj-hist-item">
       <div class="mj-hist-grid">${boxes}</div>
-      <button class="mj-hist-del-btn" data-idx="${idx}">削除</button>
+      ${delBtn}
     </div>`;
   }).join("");
+}
+
+function mjHistoryHTML() {
+  return mjHistoryListHTML(state.mahjongResults, { showDelete: true, chipRate: state.chipRate });
 }
 
 // ============================================================
@@ -1672,12 +1731,10 @@ function sogoPointsForRank(rank) {
   return 0;
 }
 
-// 囲碁：現在の順位（決着済みの対局が1つも無ければ空マップ＝まだ得点なし）
 // 囲碁：id -> { rank, points }（決着済みの対局が1つも無ければ空マップ＝まだ得点なし）
-function computeIgoRankPointsMap() {
-  const igoIds = igoParticipantIds();
-  const rounds = state.igoResults || [];
-  const anyDecided = rounds.some(round => round.some(m => m.winner && m.winner !== "bye"));
+// igoIds/roundsを明示的に渡すことで、今回の合宿にもアーカイブ済みの合宿にも使う。
+function computeIgoRankPointsMap(igoIds, rounds) {
+  const anyDecided = (rounds || []).some(round => round.some(m => m.winner && m.winner !== "bye"));
   const map = {};
   if (!anyDecided || igoIds.length === 0) return map;
   computeIgoStandings(igoIds, rounds).forEach((p, i) => { map[p.id] = { rank: i + 1, points: sogoPointsForRank(i + 1) }; });
@@ -1685,11 +1742,11 @@ function computeIgoRankPointsMap() {
 }
 
 // 麻雀：id -> { rank, points }（対局記録が1つも無ければ空マップ＝まだ得点なし）
-function computeMahjongRankPointsMap() {
-  const mjIds = mahjongParticipantIds();
+// mjIds/results/chipRateを明示的に渡すことで、今回の合宿にもアーカイブ済みの合宿にも使う。
+function computeMahjongRankPointsMap(mjIds, results, chipRate) {
   const map = {};
-  if (mjIds.length < 4 || state.mahjongResults.length === 0) return map;
-  computeMjStandings(mjIds).filter(p => p.games > 0).forEach((p, i) => { map[p.id] = { rank: i + 1, points: sogoPointsForRank(i + 1) }; });
+  if (mjIds.length < 4 || !results || results.length === 0) return map;
+  computeMjStandings(mjIds, results, chipRate).filter(p => p.games > 0).forEach((p, i) => { map[p.id] = { rank: i + 1, points: sogoPointsForRank(i + 1) }; });
   return map;
 }
 
@@ -1714,8 +1771,8 @@ function renderSogoTab() {
     return;
   }
 
-  const igoMap = computeIgoRankPointsMap();
-  const mjMap  = computeMahjongRankPointsMap();
+  const igoMap = computeIgoRankPointsMap(igoIds, state.igoResults || []);
+  const mjMap  = computeMahjongRankPointsMap(mjIds, state.mahjongResults, state.chipRate);
   const hasAnyPoints = Object.keys(igoMap).length > 0 || Object.keys(mjMap).length > 0;
 
   let html = `<p class="note" style="margin-top:0">囲碁・麻雀それぞれの合宿内の順位を配点表でポイント化し、重み（⚙️設定タブ）を掛けて合算します。</p>`;
@@ -1735,8 +1792,17 @@ function renderSogoTab() {
     return;
   }
 
+  const rows = computeSogoRows(allIds, state.participants, igoMap, mjMap, state.weights);
+  html += sogoRowsHTML(rows);
+
+  el.innerHTML = html;
+}
+
+// 総合順位の行データを計算する（参加者リスト・重みを明示的に渡すことで、
+// 今回の合宿にもアーカイブ済みの合宿にも使う）
+function computeSogoRows(allIds, participants, igoMap, mjMap, weights) {
   const partMap = {};
-  state.participants.forEach(p => { partMap[p.id] = p; });
+  participants.forEach(p => { partMap[p.id] = p; });
 
   const rows = allIds.map(id => {
     const doesIgo = !!(partMap[id] && partMap[id].igo);
@@ -1745,13 +1811,16 @@ function renderSogoTab() {
     const mjInfo  = mjMap[id];
     const igoP = igoInfo ? igoInfo.points : 0;
     const mjP  = mjInfo ? mjInfo.points : 0;
-    const total = Number((igoP * state.weights.igo + mjP * state.weights.mahjong).toFixed(2));
+    const total = Number((igoP * weights.igo + mjP * weights.mahjong).toFixed(2));
     return { id, name: roster[id]?.name || "", doesIgo, doesMj, igoInfo, mjInfo, total };
   });
   rows.sort((a, b) => b.total - a.total);
+  return rows;
+}
 
+function sogoRowsHTML(rows) {
   const medals = ["🥇","🥈","🥉"];
-  html += rows.map((r, i) => {
+  return rows.map((r, i) => {
     const igoLabel = !r.doesIgo ? `囲碁：未参加`
                    : r.igoInfo  ? `囲碁${r.igoInfo.rank}位（${r.igoInfo.points}pt）`
                    : `囲碁：順位未定`;
@@ -1768,8 +1837,238 @@ function renderSogoTab() {
         <div class="sogo-total">${r.total}pt</div>
       </div>`;
   }).join("");
+}
 
-  el.innerHTML = html;
+// ============================================================
+//  新しい合宿にする（アーカイブ）
+// ============================================================
+document.getElementById("new-camp-btn").addEventListener("click", () => {
+  if (!confirm("今回の合宿を📚過去の合宿にアーカイブしてから、次の合宿に備えて白紙に戻します（開催日・対局結果はリセットされます。参加者・回戦数・重み・チップレート・シーズンは引き継がれます）。\nよろしいですか？")) return;
+  if (archiveRef) {
+    archiveRef.push({
+      eventDate: state.eventDate,
+      participants: state.participants,
+      igoRounds: state.igoRounds,
+      igoResults: state.igoResults,
+      mahjongResults: state.mahjongResults,
+      weights: { ...state.weights },
+      chipRate: state.chipRate,
+      season: state.season
+    });
+  }
+  state.eventDate = "";
+  state.igoResults = [];
+  state.mahjongResults = [];
+  // 参加者・回戦数・重み・チップレート・シーズンはそのまま引き継ぐ
+  igoActiveRoundIdx = 0;
+  mjRankInputDirty = false;
+  pushState();
+  fillSetupInputs();
+  renderIgoTab();
+  renderMahjongTab();
+  renderSogoTab();
+  archiveShowAll = false;
+  renderArchiveTab();
+  showToast("今回の合宿をアーカイブし、新しい合宿を開始しました");
+});
+
+// ============================================================
+//  📚過去の合宿タブ
+// ============================================================
+const ARCHIVE_PAGE_SIZE = 6;
+let archiveShowAll = false;
+let archiveSeasonFilter = "all";
+
+function formatArchiveDate(eventDate) {
+  if (!eventDate) return "開催日未設定";
+  const [y, m, d] = eventDate.split("-");
+  return `${y}/${parseInt(m)}/${parseInt(d)}`;
+}
+
+// アーカイブ済みの1件分から、囲碁参加者ID・麻雀参加者IDを取り出す
+function archiveIgoIds(rec) { return (rec.participants || []).filter(p => p.igo).map(p => p.id); }
+function archiveMjIds(rec)  { return (rec.participants || []).filter(p => p.mahjong).map(p => p.id); }
+
+function renderArchiveTab() {
+  const el = document.getElementById("archive-content");
+  if (!el || !archiveRef) return;
+  archiveRef.once("value", snap => {
+    const data = snap.val();
+    const list = data
+      ? Object.entries(data).sort((a, b) => b[0].localeCompare(a[0])).map(([key, v]) => ({ key, ...v }))
+      : [];
+
+    // シーズンの選択肢（アーカイブ済み＋現在進行中の合宿のシーズンから作る）
+    const seasonSet = new Set(list.map(r => r.season || 1));
+    seasonSet.add(state.season || 1);
+    const seasonOptions = [...seasonSet].sort((a, b) => b - a);
+
+    let html = `<p class="note" style="margin-top:0">これまでの合宿結果を、今の画面と同じ形式で見られます（読み取り専用）。</p>`;
+
+    html += `<div class="fg"><label>シーズンで絞り込む</label>
+      <select id="archive-season-filter">
+        <option value="all" ${archiveSeasonFilter==="all"?"selected":""}>全期間</option>
+        ${seasonOptions.map(s => `<option value="${s}" ${String(archiveSeasonFilter)===String(s)?"selected":""}>シーズン${s}</option>`).join("")}
+      </select>
+    </div>`;
+
+    const filteredList = archiveSeasonFilter === "all" ? list : list.filter(r => String(r.season || 1) === String(archiveSeasonFilter));
+    // 現在進行中の合宿も、通算成績には（対象シーズンなら）含める
+    const includeCurrent = archiveSeasonFilter === "all" || String(archiveSeasonFilter) === String(state.season || 1);
+
+    html += `<h4 class="section-head" style="margin-top:18px">🏅 通算成績${archiveSeasonFilter==="all" ? "（全期間）" : "（シーズン" + archiveSeasonFilter + "）"}</h4>`;
+    html += `<p class="note" style="margin-top:-4px">進行中の合宿も含めて集計します。</p>`;
+    html += renderAllTimeTotals(filteredList, includeCurrent);
+
+    html += `<h4 class="section-head" style="margin-top:22px">📜 合宿ごとの結果</h4>`;
+    if (filteredList.length === 0) {
+      html += `<p class="note" style="margin:0">該当する合宿の記録はまだありません。</p>`;
+    } else {
+      const showCount = archiveShowAll ? filteredList.length : Math.min(ARCHIVE_PAGE_SIZE, filteredList.length);
+      const visible = filteredList.slice(0, showCount);
+      html += visible.map((rec, i) => {
+        const igoIds = archiveIgoIds(rec), mjIds = archiveMjIds(rec);
+        const names = (rec.participants || []).map(p => roster[p.id]?.name).filter(Boolean).join("・");
+        return `
+        <div class="archive-card">
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+            <div>
+              <strong>${escapeHtml(formatArchiveDate(rec.eventDate))}</strong>
+              <span style="display:inline-block;background:#b89752;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">シーズン${rec.season||1}</span><br>
+              <span style="color:#666;font-size:0.82rem">参加者：${escapeHtml(names)}</span>
+            </div>
+            <button type="button" class="archive-view-btn" data-key="${rec.key}" style="background:#fff;border:1px solid #ddd8cc;border-radius:6px;padding:5px 10px;font-size:0.78rem;cursor:pointer;flex-shrink:0;white-space:nowrap">結果を見る</button>
+          </div>
+          <div class="archive-detail" data-key="${rec.key}" style="display:none;margin-top:12px;border-top:1px dashed #ddd8cc;padding-top:10px"></div>
+        </div>`;
+      }).join("");
+      if (!archiveShowAll && filteredList.length > showCount) {
+        html += `<button type="button" id="archive-show-more" class="btn" style="background:#f1f0ea;color:#2c3e50;margin-top:4px">もっと見る（残り${filteredList.length - showCount}件）</button>`;
+      }
+    }
+
+    el.innerHTML = html;
+
+    document.getElementById("archive-season-filter").addEventListener("change", function() {
+      archiveSeasonFilter = this.value;
+      renderArchiveTab();
+    });
+
+    el.querySelectorAll(".archive-view-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const key = btn.dataset.key;
+        const rec = filteredList.find(r => r.key === key);
+        const detail = el.querySelector(`.archive-detail[data-key="${key}"]`);
+        const isOpen = detail.style.display !== "none";
+        if (isOpen) {
+          detail.style.display = "none";
+          btn.textContent = "結果を見る";
+        } else {
+          detail.innerHTML = renderArchivedCampDetail(rec);
+          detail.style.display = "";
+          btn.textContent = "閉じる";
+        }
+      });
+    });
+
+    const moreBtn = document.getElementById("archive-show-more");
+    if (moreBtn) moreBtn.addEventListener("click", () => { archiveShowAll = true; renderArchiveTab(); });
+  });
+}
+
+// アーカイブ済み1件分の詳細（囲碁マス目表・麻雀順位/履歴・総合順位）を、今の画面と同じ形式で描画する
+function renderArchivedCampDetail(rec) {
+  const igoIds = archiveIgoIds(rec);
+  const mjIds  = archiveMjIds(rec);
+  const igoResults = rec.igoResults || [];
+  const mjResults  = rec.mahjongResults || [];
+  const weights = rec.weights || { igo: 1, mahjong: 1 };
+  const chipRate = (typeof rec.chipRate === "number") ? rec.chipRate : 1;
+
+  let html = "";
+
+  html += `<div style="font-size:0.78rem;color:#b89752;font-weight:bold;margin-bottom:6px">⚫ 囲碁</div>`;
+  if (igoIds.length === 0) {
+    html += `<p class="note" style="margin:0 0 12px">囲碁の参加者はいませんでした。</p>`;
+  } else {
+    const igoStandings = computeIgoStandings(igoIds, igoResults);
+    const roundCount = rec.igoRounds || igoResults.length;
+    html += igoMatrixTableHTML(igoStandings, igoResults, roundCount);
+  }
+
+  html += `<div style="font-size:0.78rem;color:#b89752;font-weight:bold;margin:16px 0 6px">🀄 麻雀</div>`;
+  if (mjIds.length < 4) {
+    html += `<p class="note" style="margin:0 0 12px">麻雀の参加者は4人未満でした。</p>`;
+  } else {
+    html += mjStandingsListHTML(computeMjStandings(mjIds, mjResults, chipRate));
+  }
+
+  const allIds = [...new Set([...igoIds, ...mjIds])];
+  if (allIds.length > 0) {
+    const igoMap = computeIgoRankPointsMap(igoIds, igoResults);
+    const mjMap  = computeMahjongRankPointsMap(mjIds, mjResults, chipRate);
+    const hasAnyPoints = Object.keys(igoMap).length > 0 || Object.keys(mjMap).length > 0;
+    html += `<div style="font-size:0.78rem;color:#b89752;font-weight:bold;margin:16px 0 6px">🏅 総合（重み：囲碁${weights.igo}／麻雀${weights.mahjong}）</div>`;
+    if (hasAnyPoints) {
+      const rows = computeSogoRows(allIds, rec.participants || [], igoMap, mjMap, weights);
+      html += sogoRowsHTML(rows);
+    } else {
+      html += `<p class="note" style="margin:0">結果がありませんでした。</p>`;
+    }
+  }
+
+  return html;
+}
+
+// 全期間（またはシーズン内）の通算成績：囲碁・麻雀・総合をそれぞれ集計する。
+// filteredList（アーカイブ済み）に加え、includeCurrentがtrueなら進行中の合宿も合算する。
+function renderAllTimeTotals(filteredList, includeCurrent) {
+  const igoTotals = {}, mjTotals = {}, sogoTotals = {};
+  const addPoints = (map, id, pt) => { map[id] = (map[id] || 0) + pt; };
+
+  function addCamp(participants, igoIds, igoResults, mjIds, mjResults, weights, chipRate) {
+    const igoMap = computeIgoRankPointsMap(igoIds, igoResults || []);
+    const mjMap  = computeMahjongRankPointsMap(mjIds, mjResults, chipRate);
+    Object.keys(igoMap).forEach(id => addPoints(igoTotals, id, igoMap[id].points));
+    Object.keys(mjMap).forEach(id => addPoints(mjTotals, id, mjMap[id].points));
+    const allIds = new Set([...Object.keys(igoMap), ...Object.keys(mjMap)]);
+    allIds.forEach(id => {
+      const igoP = igoMap[id] ? igoMap[id].points : 0;
+      const mjP  = mjMap[id] ? mjMap[id].points : 0;
+      addPoints(sogoTotals, id, Number((igoP * weights.igo + mjP * weights.mahjong).toFixed(2)));
+    });
+  }
+
+  filteredList.forEach(rec => {
+    addCamp(rec.participants || [], archiveIgoIds(rec), rec.igoResults, archiveMjIds(rec), rec.mahjongResults,
+      rec.weights || { igo: 1, mahjong: 1 }, (typeof rec.chipRate === "number") ? rec.chipRate : 1);
+  });
+  if (includeCurrent) {
+    addCamp(state.participants, igoParticipantIds(), state.igoResults, mahjongParticipantIds(), state.mahjongResults,
+      state.weights, state.chipRate);
+  }
+
+  function totalsToHTML(totals, unitLabel) {
+    const ids = Object.keys(totals).filter(id => totals[id] > 0);
+    if (ids.length === 0) return `<p class="note" style="margin:4px 0 12px">まだ結果がありません。</p>`;
+    const rows = ids.map(id => ({ id, name: roster[id]?.name || "", pt: totals[id] }));
+    rows.sort((a, b) => b.pt - a.pt);
+    const medals = ["🥇","🥈","🥉"];
+    return `<div style="margin-bottom:14px">` + rows.map((r, i) => `
+      <div class="sogo-row">
+        <div class="sogo-num">${medals[i] || (i+1)}</div>
+        <div class="sogo-info"><div class="sogo-name">${escapeHtml(r.name)}</div></div>
+        <div class="sogo-total">${r.pt}${unitLabel}</div>
+      </div>`).join("") + `</div>`;
+  }
+
+  let html = `<div style="font-size:0.76rem;color:#999;font-family:sans-serif;margin-bottom:4px">⚫囲碁</div>`;
+  html += totalsToHTML(igoTotals, "pt");
+  html += `<div style="font-size:0.76rem;color:#999;font-family:sans-serif;margin-bottom:4px">🀄麻雀</div>`;
+  html += totalsToHTML(mjTotals, "pt");
+  html += `<div style="font-size:0.76rem;color:#999;font-family:sans-serif;margin-bottom:4px">🏅総合</div>`;
+  html += totalsToHTML(sogoTotals, "pt");
+  return html;
 }
 </script>
 </body>
