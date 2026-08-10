@@ -1162,13 +1162,7 @@ function renderIgoTab() {
 
   // 対局者×回戦のマス目表（一覧表示）。行の並びは「今回の合宿設定」で決めた
   // 参加者の並びに固定し、結果を入力しても動かさない。順位は別途算出して数字だけ差し替える。
-  const standings = computeIgoStandings(igoIds, rounds);
-  const rankById = {};
-  standings.forEach((p, i) => { rankById[p.id] = i + 1; });
-  const fixedOrderList = igoIds.map(id => {
-    const s = standings.find(p => p.id === id);
-    return { id, name: roster[id]?.name || "", w: s ? s.w : 0, l: s ? s.l : 0, rank: rankById[id] || null };
-  });
+  const fixedOrderList = buildIgoMatrixList(igoIds, rounds);
   let html = `<p class="note" style="margin-top:0">〇＝勝ち／●＝負け／…＝結果待ち／－＝その回戦は未生成、を表します。</p>`;
   html += igoMatrixTableHTML(fixedOrderList, rounds, state.igoRounds);
 
@@ -1244,6 +1238,19 @@ function setIgoWinner(roundIdx, matchIdx, side) {
   pushState();
   renderIgoTab();
   renderSogoTab();
+}
+
+// マス目表用に「今回の合宿設定（またはアーカイブ時点）の参加者の並び」に固定した
+// リストを作る。各行には算出済みの順位（rank）を持たせる（行の位置とは独立）。
+// 今回の合宿・アーカイブ済みの合宿の両方の囲碁マス目表から共通で使う。
+function buildIgoMatrixList(igoIds, rounds) {
+  const standings = computeIgoStandings(igoIds, rounds);
+  const rankById = {};
+  standings.forEach((p, i) => { rankById[p.id] = i + 1; });
+  return igoIds.map(id => {
+    const s = standings.find(p => p.id === id);
+    return { id, name: roster[id]?.name || "", w: s ? s.w : 0, l: s ? s.l : 0, rank: rankById[id] || null };
+  });
 }
 
 // 順位算出：勝数 → 直接対決 → Buchholz（対戦相手の勝数合計）→ 名前の五十音順（機械的基準）
@@ -1983,9 +1990,9 @@ function renderArchivedCampDetail(rec) {
   if (igoIds.length === 0) {
     html += `<p class="note" style="margin:0 0 12px">囲碁の参加者はいませんでした。</p>`;
   } else {
-    const igoStandings = computeIgoStandings(igoIds, igoResults);
+    const fixedOrderList = buildIgoMatrixList(igoIds, igoResults);
     const roundCount = rec.igoRounds || igoResults.length;
-    html += igoMatrixTableHTML(igoStandings, igoResults, roundCount);
+    html += igoMatrixTableHTML(fixedOrderList, igoResults, roundCount);
   }
 
   html += `<div style="font-size:0.78rem;color:#b89752;font-weight:bold;margin:16px 0 6px">🀄 麻雀</div>`;
