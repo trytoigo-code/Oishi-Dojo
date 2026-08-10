@@ -1789,8 +1789,11 @@ function computeSogoRows(allIds, participants, igoMap, mjMap, weights) {
     const mjInfo  = mjMap[id];
     const igoP = igoInfo ? igoInfo.points : 0;
     const mjP  = mjInfo ? mjInfo.points : 0;
-    const total = Number((igoP * weights.igo + mjP * weights.mahjong).toFixed(2));
-    return { id, name: roster[id]?.name || "", doesIgo, doesMj, igoInfo, mjInfo, total };
+    // 重みを掛けた後の内訳（表示上の内訳＋合計が、見たまま足し算で合うようにする）
+    const igoWeighted = Number((igoP * weights.igo).toFixed(2));
+    const mjWeighted  = Number((mjP * weights.mahjong).toFixed(2));
+    const total = Number((igoWeighted + mjWeighted).toFixed(2));
+    return { id, name: roster[id]?.name || "", doesIgo, doesMj, igoInfo, mjInfo, igoWeighted, mjWeighted, total };
   });
   rows.sort((a, b) => b.total - a.total);
   return rows;
@@ -1800,10 +1803,10 @@ function sogoRowsHTML(rows) {
   const medals = ["🥇","🥈","🥉"];
   return rows.map((r, i) => {
     const igoLabel = !r.doesIgo ? `囲碁：未参加`
-                   : r.igoInfo  ? `囲碁${r.igoInfo.rank}位（${r.igoInfo.points}pt）`
+                   : r.igoInfo  ? `囲碁${r.igoInfo.rank}位（${r.igoWeighted}pt）`
                    : `囲碁：順位未定`;
     const mjLabel  = !r.doesMj  ? `麻雀：未参加`
-                   : r.mjInfo   ? `麻雀${r.mjInfo.rank}位（${r.mjInfo.points}pt）`
+                   : r.mjInfo   ? `麻雀${r.mjInfo.rank}位（${r.mjWeighted}pt）`
                    : `麻雀：まだ対局なし`;
     return `
       <div class="sogo-row">
@@ -2018,8 +2021,8 @@ function renderAllTimeTotals(filteredList, includeCurrent) {
   function addCamp(participants, igoIds, igoResults, mjIds, mjResults, weights, chipRate) {
     const igoMap = computeIgoRankPointsMap(igoIds, igoResults || []);
     const mjMap  = computeMahjongRankPointsMap(mjIds, mjResults, chipRate);
-    Object.keys(igoMap).forEach(id => addPoints(igoTotals, id, igoMap[id].points));
-    Object.keys(mjMap).forEach(id => addPoints(mjTotals, id, mjMap[id].points));
+    Object.keys(igoMap).forEach(id => addPoints(igoTotals, id, Number((igoMap[id].points * weights.igo).toFixed(2))));
+    Object.keys(mjMap).forEach(id => addPoints(mjTotals, id, Number((mjMap[id].points * weights.mahjong).toFixed(2))));
     const allIds = new Set([...Object.keys(igoMap), ...Object.keys(mjMap)]);
     allIds.forEach(id => {
       const igoP = igoMap[id] ? igoMap[id].points : 0;
