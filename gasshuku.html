@@ -12,8 +12,8 @@
 
 【対局形式】
   ▼囲碁パート（スイス式）
-    参加人数（〜14人程度を想定）から回戦数の目安を自動表示し、合宿設定時に
-    西さんが回戦数を確定する（以降その合宿中は固定）。
+    参加人数（〜14人程度を想定）を見ながら、合宿設定時に西さんが回戦数を
+    手動で入力して確定する（以降その合宿中は固定。自動計算はしない）。
     組み合わせは公式のスイス式（ダッチシステム）に準拠する：全員を成績（勝数）で
     グループ分けし、各グループを「今回の合宿設定」で並べた順のまま上位半分・
     下位半分に分けて、上位1位×下位1位、上位2位×下位2位…とクロスに組む
@@ -91,13 +91,14 @@
   - タブ構成：⚫囲碁／🀄麻雀／🏅総合／📚過去の合宿／⚙️設定
   - 対局者名簿（⚙️設定タブ→管理者の仕事内。名前・段位（任意）を登録・編集・削除できる。
     大石道場杯の名簿とは別のFirebaseノードで独立管理。tournament.htmlの名簿UIを踏襲）
-  - 今回の合宿設定（開催日・参加者選択。名簿からピル型ボタンで参加者を追加すると、
-    「選んだ参加者」リストに移動する。選んだ参加者は☰ハンドルの長押しドラッグで
-    並び替え、✕ボタンで取り消し（＝選択解除）できる。各参加者の行に「⚫囲碁」
-    「🀄麻雀」トグルがあり、参加者に加えた時点でデフォルト両方ON、片方だけの人は
-    そこでOFFにする。人数は可変・14人目安。囲碁の回戦数は「囲碁をやる参加者」の
-    人数から自動算出した目安を表示しつつ手動で上書き可能。「保存して全員に同期」
-    で確定し、以降は編集の都度、上書き確認を挟む）
+  - 今回の合宿設定（開始日・終了日（1日開催なら終了日は空欄でOK）・参加者選択。
+    名簿からピル型ボタンで参加者を追加すると、「選んだ参加者」リストに移動する。
+    選んだ参加者は☰ハンドルの長押しドラッグで並び替え、✕ボタンで取り消し（＝選択
+    解除）できる。各参加者の行に「⚫囲碁」「🀄麻雀」トグルがあり、参加者に加えた
+    時点でデフォルト両方ON、片方だけの人はそこでOFFにする。人数は可変・14人目安。
+    囲碁の回戦数は自動計算をせず、参加人数を見ながら手動で入力する（目安として
+    4〜5回戦程度と案内するのみ）。「保存して全員に同期」で確定し、以降は編集の
+    都度、上書き確認を挟む）
   - 囲碁（スイス式、実装済み）
       対局者×回戦のマス目表（横スクロール）で全回戦を一覧表示。各マスに対戦相手と
       勝敗（○/●）、未決着は「…」、回戦未生成は「－」、お休みの回は「お休み」を表示。
@@ -139,10 +140,11 @@
       いない方を「未参加」と表示し、0点扱いにはするが順位計算そのものからは
       除外しない（総合ポイントに単純加算されるだけなので不利益にはならない）。
   - 過去の合宿（実装済み）
-      ⚙️設定タブの「新しい合宿にする」で、今回の合宿（開催日・参加者・囲碁結果・
-      麻雀結果・その時点の重み／チップレート／シーズン番号のスナップショット）を
-      📚過去の合宿タブにアーカイブしてから、開催日・対局結果だけを白紙に戻す
-      （参加者・回戦数・重み・チップレート・シーズンは次の合宿にそのまま引き継ぐ）。
+      ⚙️設定タブの「新しい合宿にする」で、今回の合宿（開始日・終了日・参加者・
+      囲碁結果・麻雀結果・その時点の重み／チップレート／シーズン番号のスナップ
+      ショット）を📚過去の合宿タブにアーカイブしてから、開催日・参加者・回戦数・
+      対局結果を白紙に戻す（重み・チップレート・シーズンだけ次の合宿にそのまま
+      引き継ぐ。参加者・回戦数は合宿ごとに毎回選び直す）。
       📚過去の合宿タブは3層構造：①シーズンで絞り込み可能な通算成績（囲碁／麻雀／
       総合をそれぞれ集計。進行中の合宿も対象シーズンなら含める）②合宿ごとの一覧
       （直近6件＋もっと見る）③「結果を見る」で展開する合宿ごとの詳細（囲碁マス目表・
@@ -172,9 +174,6 @@
     割って平均化（天井が揃うが「両方頑張った」貢献が薄まる）／C.総合ランキングは
     両方参加した人限定にする／D.片方だけの人に、もう片方の順位を仮補完する。
     まだ結論は出ていない）
-  - 回戦数のキャリーオーバーが参加人数の変化に追従しない（「新しい合宿にする」で
-    回戦数は前回の値のまま引き継がれ、次回参加人数が変わっても自動提案は
-    上書きされない。人数が大きく変わったときに気づきにくい）
   - byeで休んだ人が「不戦敗は基本なし・時間差で対局する」の方針通り実際に
     対局した場合、その結果をアプリ上に反映する手段がまだ無い
   - 名簿から削除された対局者は、過去の合宿の記録でも名前が空欄になる
@@ -507,7 +506,8 @@
 
       <h3>今回の合宿設定</h3>
       <p class="note">参加者は下の対局者名簿から選びます。名簿の追加・編集は「管理者の仕事」内で行います。</p>
-      <div class="fg"><label>開催日</label><input id="gs-event-date" type="date"></div>
+      <div class="fg"><label>開始日</label><input id="gs-event-start" type="date"></div>
+      <div class="fg"><label>終了日（1日だけの開催なら空欄でOK）</label><input id="gs-event-end" type="date"></div>
       <div class="fg">
         <label>参加者を名簿から追加</label>
         <div class="add-participant-list" id="gs-add-participants"></div>
@@ -519,8 +519,8 @@
       </div>
       <div class="fg">
         <label>囲碁の回戦数</label>
-        <input id="gs-igo-rounds" type="number" min="1" max="10" inputmode="numeric">
-        <p class="note" id="gs-rounds-hint" style="margin-top:6px">参加者を選ぶと目安が自動で入ります。必要なら手動で上書きできます。</p>
+        <input id="gs-igo-rounds" type="number" min="1" max="10" inputmode="numeric" placeholder="例：4">
+        <p class="note" style="margin-top:6px">参加人数に応じて手動で入力してください（目安：4〜5回戦程度）。</p>
       </div>
       <button class="btn" id="save-setup">保存して全員に同期</button>
 
@@ -609,7 +609,7 @@ let roster = {};   // { id: { name, rank } }
 // state.weights: 総合ポイント計算用の重み。state.season: 西さんが手動で区切るシーズン番号。
 // state.mahjongResults: [ { players:[id,id,id,id], points:[p1,p2,p3,p4], chips:[c1,c2,c3,c4] }, ... ]
 // players[i]が1位〜4位の順（rank順）に対応する。state.chipRate: チップ1枚あたりの換算ポイント。
-let state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
+let state = { eventStartDate: "", eventEndDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
 let rosterRef = null, stateRef = null, seasonsRef = null, archiveRef = null;
 let editingRoster = false, editingSetup = false, editingWeights = false;
 let rosterLoaded = false, stateLoaded = false;
@@ -631,7 +631,8 @@ if (isConfigured) {
     stateRef.on("value", snap => {
       const data = snap.val();
       state = {
-        eventDate:      (data && typeof data.eventDate === "string") ? data.eventDate : "",
+        eventStartDate: (data && typeof data.eventStartDate === "string") ? data.eventStartDate : "",
+        eventEndDate:   (data && typeof data.eventEndDate === "string") ? data.eventEndDate : "",
         participants: normParticipants(data && data.participants),
         igoRounds:      (data && typeof data.igoRounds === "number") ? data.igoRounds : null,
         igoResults:     (data && Array.isArray(data.igoResults)) ? data.igoResults : [],
@@ -838,7 +839,6 @@ function renderParticipants() {
       editingSetup = true;
       state.participants = [...state.participants, { id: btn.dataset.id, igo: true, mahjong: true }];
       renderParticipants();
-      updateRoundsSuggestion();
     });
   });
 
@@ -859,7 +859,6 @@ function renderParticipants() {
     editingSetup = true;
     state.participants = state.participants.filter(p => roster[p.id]);
     renderParticipants();
-    updateRoundsSuggestion();
     showToast("名簿に存在しない参加者を削除しました。「保存して全員に同期」を押すと確定します。");
   });
 
@@ -895,7 +894,6 @@ function attachParticipantItemEvents() {
       if (!part) return;
       part[key] = !part[key];
       renderParticipants();
-      updateRoundsSuggestion();
     });
   });
 
@@ -905,7 +903,6 @@ function attachParticipantItemEvents() {
       const id = btn.dataset.id;
       state.participants = state.participants.filter(p => p.id !== id);
       renderParticipants();
-      updateRoundsSuggestion();
     });
   });
 
@@ -984,58 +981,33 @@ function igoParticipantCount() {
   return state.participants.filter(p => p.igo).length;
 }
 
-// 参加人数からスイス式の回戦数の目安を計算する。
-// log2(人数)を切り上げてから+1し、上位・下位まで一意な順位がつきやすいよう余裕を持たせる。
-function suggestedRounds(n) {
-  if (n < 2) return 1;
-  return Math.ceil(Math.log2(n)) + 1;
-}
-
-function updateRoundsSuggestion() {
-  const input = document.getElementById("gs-igo-rounds");
-  const hint  = document.getElementById("gs-rounds-hint");
-  if (!input || !hint) return;
-  const n = igoParticipantCount();
-  if (n === 0) {
-    hint.textContent = "囲碁をやる参加者を選ぶと目安が自動で入ります。必要なら手動で上書きできます。";
-    return;
-  }
-  const suggested = suggestedRounds(n);
-  // まだ手動で触っていない・保存済みの値がない場合のみ、自動で目安を入れる
-  if (!input.dataset.touched && (input.value === "" || Number(input.value) === Number(input.dataset.lastSuggested || ""))) {
-    input.value = suggested;
-  }
-  input.dataset.lastSuggested = suggested;
-  hint.textContent = `囲碁参加${n}人の目安：${suggested}回戦（手動で変更できます）`;
-}
-
-document.getElementById("gs-igo-rounds").addEventListener("input", function() {
-  editingSetup = true;
-  this.dataset.touched = "1";
-});
+document.getElementById("gs-igo-rounds").addEventListener("input", () => editingSetup = true);
 document.getElementById("gs-igo-rounds").addEventListener("focus", () => editingSetup = true);
-document.getElementById("gs-event-date").addEventListener("focus", () => editingSetup = true);
-document.getElementById("gs-event-date").addEventListener("blur",  () => editingSetup = false);
+document.getElementById("gs-event-start").addEventListener("focus", () => editingSetup = true);
+document.getElementById("gs-event-start").addEventListener("blur",  () => editingSetup = false);
+document.getElementById("gs-event-end").addEventListener("focus", () => editingSetup = true);
+document.getElementById("gs-event-end").addEventListener("blur",  () => editingSetup = false);
 
 function fillSetupInputs() {
-  document.getElementById("gs-event-date").value = state.eventDate || "";
-  const roundsInput = document.getElementById("gs-igo-rounds");
-  roundsInput.value = state.igoRounds || "";
-  roundsInput.dataset.touched = state.igoRounds ? "1" : "";
-  updateRoundsSuggestion();
+  document.getElementById("gs-event-start").value = state.eventStartDate || "";
+  document.getElementById("gs-event-end").value = state.eventEndDate || "";
+  document.getElementById("gs-igo-rounds").value = state.igoRounds || "";
 }
 
 document.getElementById("save-setup").addEventListener("click", () => {
   const wasConfirmed = !!state.igoRounds && state.participants.length > 0;
   if (wasConfirmed && !confirm("すでに設定済みの合宿情報を上書きします。対局結果がある場合は影響する可能性があります。よろしいですか？")) return;
 
-  const date = document.getElementById("gs-event-date").value;
+  const startDate = document.getElementById("gs-event-start").value;
+  const endDate = document.getElementById("gs-event-end").value;
   const rounds = parseInt(document.getElementById("gs-igo-rounds").value, 10);
   if (state.participants.length === 0) { showToast("参加者を選んでください"); return; }
   const needsRounds = igoParticipantCount() > 0;
   if (needsRounds && (!rounds || rounds < 1)) { showToast("囲碁の回戦数を正しく入力してください"); return; }
+  if (endDate && startDate && endDate < startDate) { showToast("終了日は開始日より後にしてください"); return; }
 
-  state.eventDate = date;
+  state.eventStartDate = startDate;
+  state.eventEndDate = endDate;
   state.igoRounds = needsRounds ? rounds : null;
   editingSetup = false;
   pushState();
@@ -1442,7 +1414,7 @@ document.getElementById("full-reset-btn").addEventListener("click", () => {
   if (!confirm("今回の合宿設定・対局結果・シーズン番号・重み・📚過去の合宿アーカイブ・過去のシーズン記録をすべて消去して最初の状態に戻します（対局者名簿は保持されます）。\nこの操作は取り消せません。本当によいですか？")) return;
   if (archiveRef) archiveRef.remove();
   if (seasonsRef) seasonsRef.remove();
-  state = { eventDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
+  state = { eventStartDate: "", eventEndDate: "", participants: [], igoRounds: null, igoResults: [], weights: { igo: 1, mahjong: 1 }, season: 1, mahjongResults: [], chipRate: 1 };
   igoActiveRoundIdx = 0;
   mjRankInputDirty = false;
   pushState();
@@ -1849,10 +1821,11 @@ function sogoRowsHTML(rows) {
 //  新しい合宿にする（アーカイブ）
 // ============================================================
 document.getElementById("new-camp-btn").addEventListener("click", () => {
-  if (!confirm("今回の合宿を📚過去の合宿にアーカイブしてから、次の合宿に備えて白紙に戻します（開催日・対局結果はリセットされます。参加者・回戦数・重み・チップレート・シーズンは引き継がれます）。\nよろしいですか？")) return;
+  if (!confirm("今回の合宿を📚過去の合宿にアーカイブしてから、次の合宿に備えて白紙に戻します（開催日・参加者・回戦数・対局結果はリセットされます。重み・チップレート・シーズンは引き継がれます）。\nよろしいですか？")) return;
   if (archiveRef) {
     archiveRef.push({
-      eventDate: state.eventDate,
+      eventStartDate: state.eventStartDate,
+      eventEndDate: state.eventEndDate,
       participants: state.participants,
       igoRounds: state.igoRounds,
       igoResults: state.igoResults,
@@ -1862,14 +1835,18 @@ document.getElementById("new-camp-btn").addEventListener("click", () => {
       season: state.season
     });
   }
-  state.eventDate = "";
+  state.eventStartDate = "";
+  state.eventEndDate = "";
+  state.participants = [];
+  state.igoRounds = null;
   state.igoResults = [];
   state.mahjongResults = [];
-  // 参加者・回戦数・重み・チップレート・シーズンはそのまま引き継ぐ
+  // 重み・チップレート・シーズンだけそのまま引き継ぐ
   igoActiveRoundIdx = 0;
   mjRankInputDirty = false;
   pushState();
   fillSetupInputs();
+  renderParticipants();
   renderIgoTab();
   renderMahjongTab();
   renderSogoTab();
@@ -1885,10 +1862,16 @@ const ARCHIVE_PAGE_SIZE = 6;
 let archiveShowAll = false;
 let archiveSeasonFilter = "all";
 
-function formatArchiveDate(eventDate) {
-  if (!eventDate) return "開催日未設定";
-  const [y, m, d] = eventDate.split("-");
+function formatSingleDate(iso) {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
   return `${y}/${parseInt(m)}/${parseInt(d)}`;
+}
+// 開催日を範囲表示する（終了日が無い・開始日と同じなら単日として表示）
+function formatArchiveDateRange(startDate, endDate) {
+  if (!startDate) return "開催日未設定";
+  if (!endDate || endDate === startDate) return formatSingleDate(startDate);
+  return `${formatSingleDate(startDate)}〜${formatSingleDate(endDate)}`;
 }
 
 // アーカイブ済みの1件分から、囲碁参加者ID・麻雀参加者IDを取り出す
@@ -1939,7 +1922,7 @@ function renderArchiveTab() {
         <div class="archive-card">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
             <div>
-              <strong>${escapeHtml(formatArchiveDate(rec.eventDate))}</strong>
+              <strong>${escapeHtml(formatArchiveDateRange(rec.eventStartDate, rec.eventEndDate))}</strong>
               <span style="display:inline-block;background:#b89752;color:#fff;font-size:0.66rem;font-weight:bold;padding:1px 7px;border-radius:10px;margin-left:6px;vertical-align:middle">シーズン${rec.season||1}</span><br>
               <span style="color:#666;font-size:0.82rem">参加者：${escapeHtml(names)}</span>
             </div>
