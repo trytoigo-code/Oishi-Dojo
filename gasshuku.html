@@ -1347,7 +1347,18 @@ function igoMatrixTableHTML(list, rounds, roundCount) {
     row += `<td style="white-space:nowrap">${p.w}勝${p.l}敗${bhLabel}</td></tr>`;
     return row;
   }).join("");
-  const bhNote = anyDecided ? `<p class="note" style="margin-top:6px">BH＝ブフホルツ（対戦相手の勝数合計）。同成績のときの順位のタイブレークに使っています。</p>` : "";
+  const bhNote = anyDecided ? `<details style="margin-top:6px"><summary class="sogo-table-toggle">BH（ブフホルツ）とは？</summary>
+    <p class="note" style="margin-top:8px">
+      BHは「これまで対戦した相手の勝数を、全部足した数字」です。<br><br>
+      同じ勝数の人が並んだとき、勝数だけでは順位が決まりません。そこで
+      「対戦した相手がどれだけ勝っていたか」を見て、より勝っている相手と
+      対戦していた人を上位にする、という考え方です。強い相手（勝数の多い
+      相手）と対戦していた人ほどBHの数字が大きくなり、同成績のときに
+      上の順位になります。<br><br>
+      スイス式トーナメントで昔から使われている、公式な順位の決め方の1つです。
+      順位は「①勝数 → ②直接対決の結果 → ③BH」の順で比較して決めています。
+    </p>
+  </details>` : "";
   return `<div class="matrix-wrap"><table>${head}${rows}</table></div>${bhNote}`;
 }
 
