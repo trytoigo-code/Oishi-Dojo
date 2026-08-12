@@ -177,13 +177,6 @@
     まだ結論は出ていない）
   - byeで休んだ人が「不戦敗は基本なし・時間差で対局する」の方針通り実際に
     対局した場合、その結果をアプリ上に反映する手段がまだ無い
-  - 名簿から削除された対局者は、過去の合宿の記録でも名前が空欄になる
-    （アーカイブはIDで参加者を記録しているため。大石道場杯の名簿と同じ
-    構造的な弱点）
-  - 全期間の通算成績にポイント合計しか出ていない（対局・参加回数が見えないため、
-    1回だけ大勝ちした人と毎回堅実な人が区別しづらい）
-  - 過去の合宿の詳細表示は、囲碁はマス目表で全対局を振り返れるのに対し、
-    麻雀は順位表のみで対局履歴（一覧）までは展開していない
   - 合言葉はアプリ側の入力チェックのみで、Firebase自体は誰でも読み書きできる
     構造（他の山あるき／大石道場アプリ共通の弱点）
   - 名簿に同姓同名がいる場合、画面上は名前でしか表示していないため区別できない
@@ -196,9 +189,6 @@
   - 名簿の段位（初段〜九段）が、囲碁パートの組み合わせ・順位に一切反映されて
     いない（参加者を選ぶときのラベル表示にしか使っておらず、大石道場杯のような
     昇段・降段との連動は未着手）
-  - ブフホルツなど、スイス式のタイブレークで使っている生の数値を画面に表示する
-    機能（今は内部計算のみで順位判定にだけ使っており、数値そのものはどこにも
-    表示していない）
   - 参加者が合宿途中で入れ替わった場合の「今回の合宿設定」再編集の扱い
     （現時点では上書き確認のみ。結果と紐づいた後の編集制限は未検討）
 ================================================================================
@@ -760,6 +750,10 @@ function showToast(msg) {
 function escapeHtml(s) {
   return String(s || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
 }
+// 名簿から削除された対局者でも、アーカイブ時点の名前スナップショットがあれば表示する
+function resolveName(id, nameFallback) {
+  return roster[id]?.name || (nameFallback && nameFallback[id]) || "（削除済み）";
+}
 const RANK_SELECT_OPTIONS = ["","初段","二段","三段","四段","五段","六段","七段","八段","九段"];
 function rosterIdsSorted() {
   return Object.keys(roster).sort((a, b) => (roster[a].name || "").localeCompare((roster[b].name || ""), "ja"));
@@ -1279,7 +1273,7 @@ function buildIgoMatrixList(igoIds, rounds) {
   standings.forEach((p, i) => { rankById[p.id] = i + 1; });
   return igoIds.map(id => {
     const s = standings.find(p => p.id === id);
-    return { id, name: roster[id]?.name || "", w: s ? s.w : 0, l: s ? s.l : 0, rank: rankById[id] || null };
+    return { id, name: roster[id]?.name || "", w: s ? s.w : 0, l: s ? s.l : 0, bh: s ? s.bh : 0, rank: rankById[id] || null };
   });
 }
 
@@ -1349,10 +1343,12 @@ function igoMatrixTableHTML(list, rounds, roundCount) {
     const rankCell = anyDecided ? (medals[p.rank - 1] || p.rank) : "－";
     let row = `<tr><td>${rankCell}</td><td style="text-align:left;white-space:nowrap">${escapeHtml(p.name)}</td>`;
     for (let r = 0; r < roundCount; r++) row += igoMatrixCell(p.id, r, rounds);
-    row += `<td style="white-space:nowrap">${p.w}勝${p.l}敗</td></tr>`;
+    const bhLabel = (p.w > 0 || p.l > 0) ? `<br><span style="font-size:0.62rem;color:#999">BH${p.bh}</span>` : "";
+    row += `<td style="white-space:nowrap">${p.w}勝${p.l}敗${bhLabel}</td></tr>`;
     return row;
   }).join("");
-  return `<div class="matrix-wrap"><table>${head}${rows}</table></div>`;
+  const bhNote = anyDecided ? `<p class="note" style="margin-top:6px">BH＝ブフホルツ（対戦相手の勝数合計）。同成績のときの順位のタイブレークに使っています。</p>` : "";
+  return `<div class="matrix-wrap"><table>${head}${rows}</table></div>${bhNote}`;
 }
 
 // ============================================================
@@ -1786,6 +1782,7 @@ function mjStandingsHTML(mjIds) {
 function mjHistoryListHTML(results, opts) {
   const showDelete = opts && opts.showDelete;
   const chipRate = (opts && typeof opts.chipRate === "number") ? opts.chipRate : state.chipRate;
+  const nameFallback = opts && opts.nameFallback;
   if (!results || results.length === 0) {
     return `<p style="color:#999;font-size:0.88rem">まだ対局がありません。</p>`;
   }
@@ -1798,9 +1795,10 @@ function mjHistoryListHTML(results, opts) {
     const boxes = m.players.map((pid, i) => {
       const rank = rankOf[i];
       const badge = rank === 1 ? "👑" : rank === 2 ? "🥈" : rank === 3 ? "🥉" : "4位";
+      const pname = nameFallback ? resolveName(pid, nameFallback) : (roster[pid]?.name || "");
       return `<div class="mj-hist-player-box">
         <span>${badge}</span>
-        <span class="mj-hist-name-cell" title="${escapeHtml(roster[pid]?.name||"")}">${escapeHtml(roster[pid]?.name||"")}</span>
+        <span class="mj-hist-name-cell" title="${escapeHtml(pname)}">${escapeHtml(pname)}</span>
         <span class="mj-hist-pt-cell ${mjPtClass(m.points[i])}">${mjFmtPt(m.points[i])}</span>
         <span class="mj-hist-chip-cell ${mjPtClass(m.chips?m.chips[i]:0)}">${(m.chips&&m.chips[i]>0)?"+":""}${m.chips?m.chips[i]:0}</span>
       </div>`;
@@ -1946,10 +1944,13 @@ function sogoRowsHTML(rows) {
 document.getElementById("new-camp-btn").addEventListener("click", () => {
   if (!confirm("今回の合宿を📚過去の合宿にアーカイブしてから、次の合宿に備えて白紙に戻します（開催日・参加者・回戦数・対局結果はリセットされます。重み・チップレート・シーズンは引き継がれます）。\nよろしいですか？")) return;
   if (archiveRef) {
+    const participantNames = {};
+    state.participants.forEach(p => { participantNames[p.id] = roster[p.id]?.name || ""; });
     archiveRef.push({
       eventStartDate: state.eventStartDate,
       eventEndDate: state.eventEndDate,
       participants: state.participants,
+      participantNames, // 名簿から削除された後も名前が分かるよう、アーカイブ時点でスナップショットしておく
       igoRounds: state.igoRounds,
       igoResults: state.igoResults,
       mahjongResults: state.mahjongResults,
@@ -2027,10 +2028,13 @@ function renderArchiveTab() {
     const filteredList = archiveSeasonFilter === "all" ? list : list.filter(r => String(r.season || 1) === String(archiveSeasonFilter));
     // 現在進行中の合宿も、通算成績には（対象シーズンなら）含める
     const includeCurrent = archiveSeasonFilter === "all" || String(archiveSeasonFilter) === String(state.season || 1);
+    // 名簿から削除された対局者でも表示できるよう、全アーカイブの名前スナップショットをマージする
+    const mergedNameFallback = {};
+    list.forEach(rec => Object.assign(mergedNameFallback, rec.participantNames || {}));
 
     html += `<h4 class="section-head" style="margin-top:18px">🏅 通算成績${archiveSeasonFilter==="all" ? "（全期間）" : "（シーズン" + archiveSeasonFilter + "）"}</h4>`;
     html += `<p class="note" style="margin-top:-4px">進行中の合宿も含めて集計します。</p>`;
-    html += renderAllTimeTotals(filteredList, includeCurrent);
+    html += renderAllTimeTotals(filteredList, includeCurrent, mergedNameFallback);
 
     html += `<h4 class="section-head" style="margin-top:22px">📜 合宿ごとの結果</h4>`;
     if (filteredList.length === 0) {
@@ -2040,7 +2044,7 @@ function renderArchiveTab() {
       const visible = filteredList.slice(0, showCount);
       html += visible.map((rec, i) => {
         const igoIds = archiveIgoIds(rec), mjIds = archiveMjIds(rec);
-        const names = (rec.participants || []).map(p => roster[p.id]?.name).filter(Boolean).join("・");
+        const names = (rec.participants || []).map(p => resolveName(p.id, rec.participantNames)).filter(n => n && n !== "（削除済み）").join("・");
         return `
         <div class="archive-card">
           <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
@@ -2096,6 +2100,9 @@ function renderArchivedCampDetail(rec) {
   const mjResults  = rec.mahjongResults || [];
   const weights = rec.weights || { igo: 1, mahjong: 1 };
   const chipRate = (typeof rec.chipRate === "number") ? rec.chipRate : 1;
+  const nameFallback = rec.participantNames || {};
+  // 名簿から削除された対局者がいても、アーカイブ時点の名前スナップショットで補う
+  const withNames = list => { list.forEach(item => { item.name = resolveName(item.id, nameFallback); }); return list; };
 
   let html = "";
 
@@ -2103,7 +2110,7 @@ function renderArchivedCampDetail(rec) {
   if (igoIds.length === 0) {
     html += `<p class="note" style="margin:0 0 12px">囲碁の参加者はいませんでした。</p>`;
   } else {
-    const fixedOrderList = buildIgoMatrixList(igoIds, igoResults);
+    const fixedOrderList = withNames(buildIgoMatrixList(igoIds, igoResults));
     const roundCount = rec.igoRounds || igoResults.length;
     html += igoMatrixTableHTML(fixedOrderList, igoResults, roundCount);
   }
@@ -2112,7 +2119,11 @@ function renderArchivedCampDetail(rec) {
   if (mjIds.length < 4) {
     html += `<p class="note" style="margin:0 0 12px">麻雀の参加者は4人未満でした。</p>`;
   } else {
-    html += mjStandingsListHTML(computeMjStandings(mjIds, mjResults, chipRate));
+    html += mjStandingsListHTML(withNames(computeMjStandings(mjIds, mjResults, chipRate)));
+    if (mjResults.length > 0) {
+      html += `<div style="font-size:0.72rem;color:#999;font-family:sans-serif;margin:10px 0 6px">対局履歴</div>`;
+      html += mjHistoryListHTML(mjResults, { showDelete: false, chipRate, nameFallback });
+    }
   }
 
   const allIds = [...new Set([...igoIds, ...mjIds])];
@@ -2122,7 +2133,7 @@ function renderArchivedCampDetail(rec) {
     const hasAnyPoints = Object.keys(igoMap).length > 0 || Object.keys(mjMap).length > 0;
     html += `<div style="font-size:0.78rem;color:#b89752;font-weight:bold;margin:16px 0 6px">🏅 総合（重み：囲碁${weights.igo}／麻雀${weights.mahjong}）</div>`;
     if (hasAnyPoints) {
-      const rows = computeSogoRows(allIds, rec.participants || [], igoMap, mjMap, weights);
+      const rows = withNames(computeSogoRows(allIds, rec.participants || [], igoMap, mjMap, weights));
       html += sogoRowsHTML(rows);
     } else {
       html += `<p class="note" style="margin:0">結果がありませんでした。</p>`;
@@ -2134,20 +2145,23 @@ function renderArchivedCampDetail(rec) {
 
 // 全期間（またはシーズン内）の通算成績：囲碁・麻雀・総合をそれぞれ集計する。
 // filteredList（アーカイブ済み）に加え、includeCurrentがtrueなら進行中の合宿も合算する。
-function renderAllTimeTotals(filteredList, includeCurrent) {
+function renderAllTimeTotals(filteredList, includeCurrent, nameFallback) {
   const igoTotals = {}, mjTotals = {}, sogoTotals = {};
+  const igoCamps = {}, mjCamps = {}, sogoCamps = {}; // 参加した合宿の回数（種目ごと）
   const addPoints = (map, id, pt) => { map[id] = (map[id] || 0) + pt; };
+  const addCount = (map, id) => { map[id] = (map[id] || 0) + 1; };
 
   function addCamp(participants, igoIds, igoResults, mjIds, mjResults, weights, chipRate) {
     const igoMap = computeIgoRankPointsMap(igoIds, igoResults || []);
     const mjMap  = computeMahjongRankPointsMap(mjIds, mjResults, chipRate);
-    Object.keys(igoMap).forEach(id => addPoints(igoTotals, id, Number((igoMap[id].points * weights.igo).toFixed(2))));
-    Object.keys(mjMap).forEach(id => addPoints(mjTotals, id, Number((mjMap[id].points * weights.mahjong).toFixed(2))));
+    Object.keys(igoMap).forEach(id => { addPoints(igoTotals, id, Number((igoMap[id].points * weights.igo).toFixed(2))); addCount(igoCamps, id); });
+    Object.keys(mjMap).forEach(id => { addPoints(mjTotals, id, Number((mjMap[id].points * weights.mahjong).toFixed(2))); addCount(mjCamps, id); });
     const allIds = new Set([...Object.keys(igoMap), ...Object.keys(mjMap)]);
     allIds.forEach(id => {
       const igoP = igoMap[id] ? igoMap[id].points : 0;
       const mjP  = mjMap[id] ? mjMap[id].points : 0;
       addPoints(sogoTotals, id, Number((igoP * weights.igo + mjP * weights.mahjong).toFixed(2)));
+      addCount(sogoCamps, id);
     });
   }
 
@@ -2160,26 +2174,29 @@ function renderAllTimeTotals(filteredList, includeCurrent) {
       state.weights, state.chipRate);
   }
 
-  function totalsToHTML(totals, unitLabel) {
+  function totalsToHTML(totals, camps, unitLabel) {
     const ids = Object.keys(totals).filter(id => totals[id] > 0);
     if (ids.length === 0) return `<p class="note" style="margin:4px 0 12px">まだ結果がありません。</p>`;
-    const rows = ids.map(id => ({ id, name: roster[id]?.name || "", pt: totals[id] }));
+    const rows = ids.map(id => ({ id, name: resolveName(id, nameFallback), pt: totals[id], camps: camps[id] || 0 }));
     rows.sort((a, b) => b.pt - a.pt);
     const medals = ["🥇","🥈","🥉"];
     return `<div style="margin-bottom:14px">` + rows.map((r, i) => `
       <div class="sogo-row">
         <div class="sogo-num">${medals[i] || (i+1)}</div>
-        <div class="sogo-info"><div class="sogo-name">${escapeHtml(r.name)}</div></div>
+        <div class="sogo-info">
+          <div class="sogo-name">${escapeHtml(r.name)}</div>
+          <div class="sogo-sub">${r.camps}回参加</div>
+        </div>
         <div class="sogo-total">${r.pt}${unitLabel}</div>
       </div>`).join("") + `</div>`;
   }
 
   let html = `<div style="font-size:0.76rem;color:#999;font-family:sans-serif;margin-bottom:4px">⚫囲碁</div>`;
-  html += totalsToHTML(igoTotals, "pt");
+  html += totalsToHTML(igoTotals, igoCamps, "pt");
   html += `<div style="font-size:0.76rem;color:#999;font-family:sans-serif;margin-bottom:4px">🀄麻雀</div>`;
-  html += totalsToHTML(mjTotals, "pt");
+  html += totalsToHTML(mjTotals, mjCamps, "pt");
   html += `<div style="font-size:0.76rem;color:#999;font-family:sans-serif;margin-bottom:4px">🏅総合</div>`;
-  html += totalsToHTML(sogoTotals, "pt");
+  html += totalsToHTML(sogoTotals, sogoCamps, "pt");
   return html;
 }
 </script>
