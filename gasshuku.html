@@ -115,9 +115,11 @@
       させて一緒に処理する。クロスの相手が対戦済みの場合は、下位半分の中で相手を
       前後にずらして再戦にならない組み合わせを探す（それでも見つからなければ
       仕方なく再戦を許容する）。次の回戦は前の回戦の全結果が揃うまで生成しない。
-      生成済みの回戦のうち、最新以外は結果の変更ができない（過去回戦の修正は
-      今後の課題）。全体人数が奇数のときは1人がbye（まだbyeを経験していない人を
-      優先。勝敗に影響しない・不戦敗にはしない）。
+      過去の回戦（最新以外）の結果もタップして修正できる。ただし修正すると、
+      その回戦より後に生成済みの回戦は自動的に消去される（結果が変わることで
+      それ以降の組み合わせの前提が崩れるため。組み直しが必要）。全体人数が
+      奇数のときは1人がbye（まだbyeを経験していない人を優先。勝敗に影響しない・
+      不戦敗にはしない）。
   - 麻雀（回ごとの自由対局記録、実装済み）
       対象は「今回の合宿設定」で麻雀ON・かつ名簿に存在する参加者。半チャンのたびに
       その中から卓の4人を自由に選んで記録する（入れ替わり・抜け番に対応。既存の
@@ -126,9 +128,11 @@
       日付を持たない（合宿1回＝1つの記録の集合）。今回の合宿の麻雀順位は、
       対局pt＋チップ換算pt（重み設定内のチップレートで換算）の総合ポイント順で
       算出し、各対局の1〜4位バッジ・対局回数もあわせて表示する。対局履歴は
-      新しい順に一覧表示し、削除（確認ダイアログあり、Undo機能は今後の課題）に
-      対応。他の参加者の更新によるリアルタイム同期で、入力中のフォームが消えない
-      よう編集中フラグ（mjRankInputDirty）でガードしている。
+      新しい順に一覧表示し、削除（確認ダイアログ＋10秒間の「元に戻す」Undo対応）と、
+      修正（モーダルでポイント・チップの値を編集。対局者の入れ替えは非対応、
+      誤って選んだ場合は削除して登録し直す）の両方に対応。他の参加者の更新による
+      リアルタイム同期で、入力中のフォームが消えないよう編集中フラグ
+      （mjRankInputDirty）でガードしている。
   - 総合（囲碁ポイント×重み＋麻雀ポイント×重み、実装済み）
       囲碁・麻雀それぞれの「今回の合宿」内の現在の順位を、固定配点表
       （1位100／2位80／3位60／4位50／5位40／6位30／7位25／8位20／9位16／
@@ -163,9 +167,6 @@
     折りたたみなど、山あるき／大石道場共通のUI部品はこの段階で導入済み。
 
 【今後の改良候補】
-  - 過去回戦の結果修正（現状は最新回戦のみ編集可、過去分は結果リセットしないと直せない）
-  - 麻雀の対局記録のUndo機能（削除の取り消し。他アプリ＝点棒/星取と同じ10秒Undoを想定）
-  - 麻雀の対局履歴の修正機能（現状は削除のみ、値の修正はできない）
   - 15位以下が出た場合の配点方針の検討
   - アーカイブ済みの合宿記録の修正・削除（現状は一度アーカイブすると読み取り専用）
   - 【重要】囲碁・麻雀どちらか片方しか参加しない人の総合順位の扱い
@@ -333,6 +334,10 @@
     background: #e74c3c; color: #fff; border: none;
     padding: 6px 10px; border-radius: 4px; font-size: 0.76rem; cursor: pointer; flex-shrink: 0;
   }
+  .mj-hist-edit-btn {
+    background: #b89752; color: #fff; border: none;
+    padding: 6px 10px; border-radius: 4px; font-size: 0.76rem; cursor: pointer; flex-shrink: 0;
+  }
 
   /* 囲碁：対局者×回戦のマス目表 */
   .matrix-wrap { overflow-x: auto; margin: 8px 0 4px; }
@@ -356,13 +361,11 @@
     display: flex; align-items: center; background: #fff; border: 1px solid #ddd8cc;
     border-radius: 8px; margin-bottom: 8px; overflow: hidden;
   }
-  .match-card.locked { opacity: 0.75; }
   .match-side {
     flex: 1; padding: 12px 10px; text-align: center; font-size: 0.88rem; font-weight: bold;
     color: #555; cursor: pointer; background: #fff;
   }
   .match-side.winner { background: #fdf1ef; color: #b03a2e; }
-  .match-side.disabled { cursor: default; }
   .match-vs { padding: 0 6px; color: #bbb; font-size: 0.76rem; flex-shrink: 0; }
   .match-bye { padding: 12px; text-align: center; color: #888; font-size: 0.86rem; }
 
@@ -436,7 +439,12 @@
     position: fixed; bottom: 28px; left: 50%; transform: translateX(-50%);
     background: #2c3e50; color: #fff; padding: 10px 18px;
     border-radius: 20px; font-size: 0.88rem; z-index: 999;
-    display: none; box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: none; align-items: center; gap: 12px; white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  }
+  #toast-undo {
+    background: none; border: 1px solid #fff; color: #fff;
+    padding: 3px 10px; border-radius: 12px; font-size: 0.82rem; cursor: pointer;
   }
 </style>
 </head>
@@ -582,7 +590,19 @@
 
   </div>
 </div>
-<div id="toast"></div>
+<div id="toast"><span id="toast-msg"></span><button id="toast-undo" style="display:none">元に戻す</button></div>
+
+<!-- 麻雀：記録修正モーダル -->
+<div id="mj-edit-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.5);z-index:1000;overflow-y:auto">
+  <div style="background:#fff;margin:40px auto;max-width:420px;border-radius:10px;padding:20px;box-sizing:border-box">
+    <h3 style="border-left:4px solid #b89752;padding-left:8px;color:#2c3e50;margin-top:0;font-size:1rem">対局記録の修正</h3>
+    <div id="mj-edit-players-wrap"></div>
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button id="mj-edit-save" style="flex:1;background:#b89752;color:#fff;border:none;padding:10px;border-radius:6px;font-size:0.9rem;cursor:pointer">保存する</button>
+      <button id="mj-edit-cancel" style="flex:1;background:#999;color:#fff;border:none;padding:10px;border-radius:6px;font-size:0.9rem;cursor:pointer">キャンセル</button>
+    </div>
+  </div>
+</div>
 
 <script>
 const firebaseConfig = {
@@ -729,7 +749,9 @@ document.getElementById("admin-toggle").addEventListener("click", () => {
 let toastTimer = null;
 function showToast(msg) {
   const el = document.getElementById("toast");
-  el.textContent = msg; el.style.display = "block";
+  document.getElementById("toast-msg").textContent = msg;
+  document.getElementById("toast-undo").style.display = "none";
+  el.style.display = "flex";
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => el.style.display = "none", 2500);
 }
@@ -1178,9 +1200,9 @@ function renderIgoTab() {
   const idx = igoActiveRoundIdx;
   if (idx < rounds.length) {
     const round = rounds[idx];
-    const locked = idx < rounds.length - 1; // 最新回戦より前は編集不可
-    if (locked) html += `<p class="note" style="margin-top:0">この回戦は確定済みです（次の回戦が生成されているため変更できません）。</p>`;
-    html += round.map((m, mi) => matchCardHTML(m, idx, mi, locked)).join("");
+    const isPastRound = idx < rounds.length - 1;
+    if (isPastRound) html += `<p class="note" style="margin-top:0">この回戦を修正すると、第${idx+2}回戦以降の組み合わせは自動的に消去されます（組み直しが必要になります）。</p>`;
+    html += round.map((m, mi) => matchCardHTML(m, idx, mi, false)).join("");
   } else if (idx === rounds.length) {
     const prevOk = idx === 0 || roundComplete(rounds[idx - 1]);
     if (prevOk) {
@@ -1211,17 +1233,16 @@ function renderIgoTab() {
   });
 }
 
-function matchCardHTML(m, roundIdx, matchIdx, locked) {
+function matchCardHTML(m, roundIdx, matchIdx) {
   if (m.b === null) {
     return `<div class="match-card"><div class="match-bye">${escapeHtml(roster[m.a]?.name || "")}　この回戦はお休み（不戦敗にはなりません）</div></div>`;
   }
   const nameA = escapeHtml(roster[m.a]?.name || "");
   const nameB = escapeHtml(roster[m.b]?.name || "");
   const winA = m.winner === "a", winB = m.winner === "b";
-  const cls = locked ? "match-card locked" : "match-card";
-  const sideAttrs = locked ? "" : ` data-round="${roundIdx}" data-match="${matchIdx}"`;
-  const sideCls = (extra) => `match-side ${extra} ${locked ? "disabled" : ""}`;
-  return `<div class="${cls}">
+  const sideAttrs = ` data-round="${roundIdx}" data-match="${matchIdx}"`;
+  const sideCls = (extra) => `match-side ${extra}`;
+  return `<div class="match-card">
     <div class="${sideCls(winA?"winner":"")}"${sideAttrs} data-side="a">${winA?"👑 ":""}${nameA}</div>
     <div class="match-vs">vs</div>
     <div class="${sideCls(winB?"winner":"")}"${sideAttrs} data-side="b">${winB?"👑 ":""}${nameB}</div>
@@ -1231,10 +1252,19 @@ function matchCardHTML(m, roundIdx, matchIdx, locked) {
 function setIgoWinner(roundIdx, matchIdx, side) {
   const m = state.igoResults[roundIdx][matchIdx];
   if (m.winner === side) return;
-  if (m.winner) {
-    if (!confirm("すでに決まっている結果を変更しますか？")) return;
+  const isPastRound = roundIdx < state.igoResults.length - 1;
+  let msg = null;
+  if (isPastRound) {
+    msg = `第${roundIdx+1}回戦の結果を変更します。第${roundIdx+2}回戦以降はこの変更を反映していないため、自動的に組み合わせを消去します（あとで組み直してください）。よろしいですか？`;
+  } else if (m.winner) {
+    msg = "すでに決まっている結果を変更しますか？";
   }
+  if (msg && !confirm(msg)) return;
   m.winner = side;
+  if (isPastRound) {
+    state.igoResults = state.igoResults.slice(0, roundIdx + 1);
+    if (igoActiveRoundIdx > roundIdx) igoActiveRoundIdx = roundIdx;
+  }
   pushState();
   renderIgoTab();
   renderSogoTab();
@@ -1503,14 +1533,96 @@ function renderMahjongTab() {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.idx);
       if (!confirm("この対局記録を削除しますか？")) return;
-      state.mahjongResults.splice(idx, 1);
-      pushState();
-      renderMahjongTab();
-      renderSogoTab();
-      showToast("削除しました");
+      deleteMjMatchWithUndo(idx);
     });
   });
+  histEl.querySelectorAll(".mj-hist-edit-btn").forEach(btn => {
+    btn.addEventListener("click", () => openMjEditModal(Number(btn.dataset.idx)));
+  });
 }
+
+// ---------- 麻雀：削除＋Undo ----------
+let mjToastTimer = null;
+let mjUndoTimer = null;
+let pendingMjDelete = null; // { idx, record }
+
+function deleteMjMatchWithUndo(idx) {
+  pendingMjDelete = { idx, record: state.mahjongResults[idx] };
+  state.mahjongResults.splice(idx, 1);
+  pushState(); // 即座にFirebaseへ反映（他の参加者の更新との競合を避けるため）
+  renderMahjongTab();
+  renderSogoTab();
+
+  const el = document.getElementById("toast");
+  document.getElementById("toast-msg").textContent = "削除しました";
+  document.getElementById("toast-undo").style.display = "inline-block";
+  el.style.display = "flex";
+  if (toastTimer) clearTimeout(toastTimer);
+  if (mjUndoTimer) clearTimeout(mjUndoTimer);
+  mjUndoTimer = setTimeout(() => {
+    el.style.display = "none";
+    pendingMjDelete = null;
+  }, 10000);
+}
+
+document.getElementById("toast-undo").addEventListener("click", () => {
+  if (!pendingMjDelete) return;
+  state.mahjongResults.splice(pendingMjDelete.idx, 0, pendingMjDelete.record);
+  pendingMjDelete = null;
+  if (mjUndoTimer) clearTimeout(mjUndoTimer);
+  pushState();
+  renderMahjongTab();
+  renderSogoTab();
+  showToast("元に戻しました");
+});
+
+// ---------- 麻雀：記録の修正 ----------
+let mjEditTargetIdx = -1;
+
+function openMjEditModal(idx) {
+  const m = state.mahjongResults[idx];
+  if (!m) return;
+  mjEditTargetIdx = idx;
+  const wrap = document.getElementById("mj-edit-players-wrap");
+  wrap.innerHTML = m.players.map((pid, i) => `
+    <div style="margin-top:10px;border:1px solid #e0dbcd;border-radius:8px;padding:10px">
+      <div style="font-size:0.8rem;color:#888;margin-bottom:6px">${escapeHtml(roster[pid]?.name || "")}</div>
+      <div style="display:flex;gap:8px">
+        <div class="fg" style="flex:1;margin:0"><label>ポイント</label><input type="number" step="any" id="mj-edit-pt-${i}" value="${m.points[i]}"></div>
+        <div class="fg" style="flex:1;margin:0"><label>チップ</label><input type="number" step="any" id="mj-edit-chip-${i}" value="${m.chips ? m.chips[i] : 0}"></div>
+      </div>
+    </div>`).join("");
+  document.getElementById("mj-edit-modal").style.display = "block";
+}
+
+document.getElementById("mj-edit-save").addEventListener("click", () => {
+  if (mjEditTargetIdx < 0) return;
+  const m = state.mahjongResults[mjEditTargetIdx];
+  m.players.forEach((pid, i) => {
+    const pt = parseFloat(document.getElementById(`mj-edit-pt-${i}`).value);
+    const chip = parseFloat(document.getElementById(`mj-edit-chip-${i}`).value);
+    if (!isNaN(pt)) m.points[i] = pt;
+    if (!isNaN(chip)) { m.chips = m.chips || [0,0,0,0]; m.chips[i] = chip; }
+  });
+  pushState();
+  document.getElementById("mj-edit-modal").style.display = "none";
+  mjEditTargetIdx = -1;
+  renderMahjongTab();
+  renderSogoTab();
+  showToast("修正しました");
+});
+
+document.getElementById("mj-edit-cancel").addEventListener("click", () => {
+  document.getElementById("mj-edit-modal").style.display = "none";
+  mjEditTargetIdx = -1;
+});
+
+document.getElementById("mj-edit-modal").addEventListener("click", e => {
+  if (e.target === document.getElementById("mj-edit-modal")) {
+    document.getElementById("mj-edit-modal").style.display = "none";
+    mjEditTargetIdx = -1;
+  }
+});
 
 function buildMjRankInputs(mjIds) {
   mjRankInputDirty = false;
@@ -1693,10 +1805,11 @@ function mjHistoryListHTML(results, opts) {
         <span class="mj-hist-chip-cell ${mjPtClass(m.chips?m.chips[i]:0)}">${(m.chips&&m.chips[i]>0)?"+":""}${m.chips?m.chips[i]:0}</span>
       </div>`;
     }).join("");
+    const editBtn = showDelete ? `<button class="mj-hist-edit-btn" data-idx="${idx}">修正</button>` : "";
     const delBtn = showDelete ? `<button class="mj-hist-del-btn" data-idx="${idx}">削除</button>` : "";
     return `<div class="mj-hist-item">
       <div class="mj-hist-grid">${boxes}</div>
-      ${delBtn}
+      <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0">${editBtn}${delBtn}</div>
     </div>`;
   }).join("");
 }
