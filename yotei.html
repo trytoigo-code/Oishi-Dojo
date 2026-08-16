@@ -51,6 +51,9 @@
       開催日順に一覧表示。今日以降は近い順、今日より前は「過去の予定」として
       新しい順に別セクション表示。カードに種別バッジ・開催日（範囲）・メモ・
       参加表明の人数サマリ（⚪️〇人／△〇人／✕〇人）を表示
+      種別フィルター（すべて／🏕️合宿／🏆大石道場杯）で絞り込み表示可能
+      （両方見たい人・大石道場杯だけ見たい人など、見る人によって
+      関心のあるイベント種別が違うことを想定）
   - 予定の作成・編集・削除（種別＝合宿／大石道場杯、開始日、終了日（任意）、
     メモ（任意）を入力）
   - 参加表明（予定カードを開くと、専用名簿からピル型ボタンで参加者を追加でき、
@@ -58,10 +61,18 @@
     記録できる。参加者一覧から丸ごと削除するボタンも別途あり）
   - 対局者名簿（⚙️設定タブ→管理者の仕事内。名前のみのシンプルな管理。
     tournament/gasshukuの名簿とは別管理）
+  - 公開閲覧モード（URLに ?public=1 を付けてアクセスすると、大石道場杯の予定だけを
+    閲覧専用で表示する。編集ボタン・参加者の個別編集・⚙️設定タブは出さず、
+    種別フィルターも「大石道場杯」に固定される。内輪メンバー＝両方見える通常URL、
+    外部・セモオープンな人＝大石道場杯だけ見える?public=1付きURL、という
+    使い分けを想定。※合言葉認証を外すかどうかはまだ保留中で、現時点では
+    ?public=1でアクセスしても通常どおり合言葉が必要）
   - Firebase によるリアルタイム同期
   - データエクスポート（設定タブからJSONファイルとしてダウンロード）
 
 【今後の改良候補】
+  - 【保留中】公開閲覧モード（?public=1）の認証方針。合言葉なしにするか、
+    別の合言葉を用意するか、今のまま共通の合言葉でよいかが未決定
   - 参加表明が確定した予定を、そのままtournament.html/gasshuku.htmlの
     対局者選択に引き継ぐ連携（現状は手動で転記する必要がある）
   - リマインダー的な通知（現状は開いて見に来る前提）
@@ -140,6 +151,15 @@
     padding: 14px 16px; border-radius: 8px; margin-bottom: 16px;
     font-size: 0.85rem; line-height: 1.7; display: none;
   }
+
+  .type-filter-row { display: flex; gap: 6px; margin-bottom: 16px; }
+  .type-filter-btn {
+    flex: 1; padding: 8px 4px; border: 1px solid #ddd8cc; border-radius: 16px;
+    background: #fff; font-size: 0.8rem; font-weight: bold; color: #777; cursor: pointer;
+  }
+  .type-filter-btn.active { background: #2c3e50; color: #fff; border-color: #2c3e50; }
+  .type-filter-btn.active.type-gasshuku { background: #2e7d5e; border-color: #2e7d5e; }
+  .type-filter-btn.active.type-tournament { background: #b89752; border-color: #b89752; }
 
   .event-card { background: #fff; border: 1px solid #e0dbcd; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
   .event-badge {
@@ -228,7 +248,7 @@
 
   <div id="nav">
     <button class="tab-btn active" data-tab="events">📅予定</button>
-    <button class="tab-btn" data-tab="setup">⚙️設定</button>
+    <button class="tab-btn" id="tab-setup" data-tab="setup">⚙️設定</button>
   </div>
 
   <div id="content">
@@ -256,6 +276,12 @@
           <button class="btn" id="ev-submit">登録する</button>
           <button class="btn btn-cancel" id="ev-cancel">キャンセル</button>
         </div>
+      </div>
+
+      <div class="type-filter-row" id="type-filter-row">
+        <button type="button" class="type-filter-btn active" data-filter="all">すべて</button>
+        <button type="button" class="type-filter-btn type-gasshuku" data-filter="gasshuku">🏕️ 合宿</button>
+        <button type="button" class="type-filter-btn type-tournament" data-filter="tournament">🏆 大石道場杯</button>
       </div>
 
       <h4 class="section-head" style="margin-top:0" id="upcoming-head">🔜 予定</h4>
@@ -303,6 +329,11 @@ const firebaseConfig = {
 };
 const isConfigured = firebaseConfig.apiKey !== "YOUR_API_KEY";
 
+// 外部・セモオープンな人向けの閲覧専用モード（?public=1）。
+// 大石道場杯の予定だけを、編集・参加者管理なしで表示する。
+// ※ 認証（合言葉）を外すかどうかは保留中。現時点では通常どおり合言葉必須のまま。
+const isPublicView = new URLSearchParams(location.search).get("public") === "1";
+
 const TYPE_INFO = {
   gasshuku:   { label: "🏕️ 合宿" },
   tournament: { label: "🏆 大石道場杯" }
@@ -320,6 +351,16 @@ let editingSetup = false;
 let currentEventType = "gasshuku";
 let editingEventKey = null; // nullなら新規作成
 let openEventKeys = new Set(); // 参加者パネルを開いている予定のkey集合
+let currentTypeFilter = "all"; // "all" | "gasshuku" | "tournament"（予定一覧の種別絞り込み）
+
+// 公開閲覧モード（?public=1）の初期化：大石道場杯だけに固定し、編集系UIを隠す
+if (isPublicView) {
+  currentTypeFilter = "tournament";
+  document.getElementById("header").querySelector("h1").textContent = "🏆 大石道場杯 予定";
+  document.getElementById("nav").style.display = "none";
+  document.getElementById("add-event-btn").style.display = "none";
+  document.getElementById("type-filter-row").style.display = "none";
+}
 
 if (isConfigured) {
   try {
@@ -369,6 +410,15 @@ document.querySelectorAll(".tab-btn").forEach(btn => {
     document.querySelectorAll(".panel").forEach(p => p.classList.remove("active"));
     btn.classList.add("active");
     document.getElementById("panel-" + btn.dataset.tab).classList.add("active");
+  });
+});
+
+document.querySelectorAll(".type-filter-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    currentTypeFilter = btn.dataset.filter;
+    document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.remove("active"));
+    btn.classList.add("active");
+    renderEvents();
   });
 });
 
@@ -479,12 +529,25 @@ function participantSummary(participants) {
 function eventCardHTML(key, ev) {
   const info = TYPE_INFO[ev.type] || { label: ev.type };
   const isOpen = openEventKeys.has(key);
+  const summaryLine = `<div class="event-summary">${participantSummary(ev.participants)}</div>`;
+
+  if (isPublicView) {
+    // 外部・セモオープンな人向け：閲覧専用。編集ボタン・参加者の個別編集は出さない。
+    return `
+    <div class="event-card" data-key="${key}">
+      <span class="event-badge type-${ev.type}">${info.label}</span>
+      <div class="event-date">${escapeHtml(formatDateRange(ev.startDate, ev.endDate))}</div>
+      ${ev.memo ? `<div class="event-memo">${escapeHtml(ev.memo)}</div>` : ""}
+      ${summaryLine}
+    </div>`;
+  }
+
   return `
     <div class="event-card" data-key="${key}">
       <span class="event-badge type-${ev.type}">${info.label}</span>
       <div class="event-date">${escapeHtml(formatDateRange(ev.startDate, ev.endDate))}</div>
       ${ev.memo ? `<div class="event-memo">${escapeHtml(ev.memo)}</div>` : ""}
-      <div class="event-summary">${participantSummary(ev.participants)}</div>
+      ${summaryLine}
       <div class="event-btn-row">
         <button class="event-toggle-btn" data-action="toggle" data-key="${key}">${isOpen ? "閉じる" : "参加者を見る・編集"}</button>
         <button class="event-edit-btn" data-action="edit" data-key="${key}">修正</button>
@@ -523,14 +586,18 @@ function participantPanelHTML(key, ev) {
 }
 
 function renderEvents() {
-  const keys = Object.keys(events);
+  const allKeys = Object.keys(events);
+  const keys = currentTypeFilter === "all" ? allKeys : allKeys.filter(k => events[k].type === currentTypeFilter);
   const today = todayIso();
   const upcoming = keys.filter(k => (events[k].startDate || "") >= today).sort((a,b) => (events[a].startDate||"").localeCompare(events[b].startDate||""));
   const past = keys.filter(k => (events[k].startDate || "") < today).sort((a,b) => (events[b].startDate||"").localeCompare(events[a].startDate||""));
 
+  const emptyMsg = allKeys.length === 0
+    ? `予定はまだありません。「＋ 予定を追加」から登録してください。`
+    : `この種別の予定はありません。`;
   document.getElementById("upcoming-list").innerHTML = upcoming.length
     ? upcoming.map(k => eventCardHTML(k, events[k])).join("")
-    : `<p style="color:#999;font-size:0.88rem">予定はまだありません。「＋ 予定を追加」から登録してください。</p>`;
+    : `<p style="color:#999;font-size:0.88rem">${emptyMsg}</p>`;
 
   document.getElementById("past-section").style.display = past.length ? "" : "none";
   document.getElementById("past-list").innerHTML = past.map(k => eventCardHTML(k, events[k])).join("");
